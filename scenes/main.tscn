@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://b8r5lwpndganx"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/kael.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/arthur.tscn" id="2"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -14,11 +14,14 @@ color = Color(0.09, 0.12, 0.18, 1)
 polygon = PackedVector2Array(80, 350, 880, 350, 880, 354, 80, 354)
 color = Color(0.3, 0.36, 0.43, 1)
 
-[node name="Kael" parent="." instance=ExtResource("2")]
+[node name="Arthur" parent="." instance=ExtResource("2")]
 position = Vector2(240, 350)
 
 [node name="SlimeSpawn" type="Marker2D" parent="."]
 position = Vector2(720, 350)
+
+[node name="AlternateSlimeSpawn" type="Marker2D" parent="."]
+position = Vector2(300, 350)
 
 [node name="RespawnTimer" type="Timer" parent="."]
 wait_time = 2.0
@@ -41,12 +44,12 @@ theme_override_font_sizes/font_size = 26
 text = "Gold: 0"
 horizontal_alignment = 2
 
-[node name="KaelLabel" type="Label" parent="UI"]
-offset_left = 100.0
+[node name="ArthurLabel" type="Label" parent="UI"]
+offset_left = 40.0
 offset_top = 370.0
-offset_right = 380.0
+offset_right = 440.0
 theme_override_font_sizes/font_size = 22
-text = "Kael — Knight\n10 damage / second"
+text = "Arthur - Knight | Level 1\nDamage: 10 | HP: 100 / 100"
 horizontal_alignment = 1
 
 [node name="SlimeHPLabel" type="Label" parent="UI"]
@@ -63,3 +66,26 @@ offset_top = 470.0
 offset_right = 920.0
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
+
+[node name="StateLabel" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 85.0
+theme_override_font_sizes/font_size = 20
+text = "Arthur: IDLE"
+
+[node name="XPLabel" type="Label" parent="UI"]
+offset_left = 600.0
+offset_top = 85.0
+offset_right = 920.0
+theme_override_font_sizes/font_size = 20
+text = "XP: 0 / 30"
+horizontal_alignment = 2
+
+[node name="XPBar" type="ProgressBar" parent="UI"]
+offset_left = 600.0
+offset_top = 118.0
+offset_right = 920.0
+offset_bottom = 132.0
+mouse_filter = 2
+max_value = 30.0
+show_percentage = false
