@@ -7,13 +7,16 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = grant test items"
+const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = test items | F10 = +500 Gold"
 
 var loot_table = LOOT_TABLE.new()
 # Development only: F6/F7 override one kill, then normal rates resume.
 var debug_next_drop: ItemData
 
-var gold: int = 0
+# The wallet owns the balance; this read-only view keeps game queries simple.
+var gold: int:
+	get:
+		return wallet.balance
 var slime: Node2D
 var spawn_on_right: bool = true
 
@@ -30,7 +33,10 @@ var spawn_on_right: bool = true
 @onready var xp_bar: ProgressBar = $UI/XPBar
 @onready var ground_loot: Node2D = $GroundLoot
 @onready var inventory: Inventory = $Inventory
-@onready var inventory_ui = $UI/InventoryPanel
+@onready var inventory_ui = $UI/Sidebar/Inventory
+@onready var skill_ui = $UI/Sidebar/Skills
+@onready var wallet: GoldWallet = $GoldWallet
+@onready var attack_interval_label: Label = $UI/AttackIntervalLabel
 @onready var loot_debug_label: Label = $UI/LootDebugLabel
 
 
@@ -38,6 +44,9 @@ func _ready() -> void:
 	loot_debug_label.visible = OS.is_debug_build()
 	loot_debug_label.text = DEBUG_HINT
 	inventory_ui.setup(inventory, arthur.equipment)
+	skill_ui.setup(arthur.skills, wallet, arthur.name)
+	$UI/Sidebar.set_tab_title(1, arthur.skills.tree.display_name)
+	wallet.changed.connect(_update_gold)
 	arthur.attacked.connect(_on_arthur_attacked)
 	arthur.state_changed.connect(_on_arthur_state_changed)
 	arthur.stats_changed.connect(_update_arthur_stats)
@@ -58,7 +67,7 @@ func _spawn_slime() -> void:
 	slime.died.connect(_on_slime_died)
 	add_child(slime)
 	_update_slime_hp(slime.hp)
-	status_label.text = "Arthur approaches the Slime and attacks once per second in melee range."
+	status_label.text = "Arthur approaches the Slime and attacks automatically in melee range."
 	arthur.set_target(slime)
 
 
@@ -94,7 +103,7 @@ func _on_slime_died() -> void:
 	arthur.set_target(null)
 	var gold_reward: int = arthur.equipment.gold_reward(GOLD_PER_SLIME)
 	var xp_reward: int = arthur.equipment.xp_reward(XP_PER_SLIME)
-	gold += gold_reward
+	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
 	gold_label.text = "Gold: %d" % gold
 	status_label.text = "Slime defeated! +%d Gold, +%d XP. Next Slime in 2 seconds..." % [gold_reward, xp_reward]
@@ -116,6 +125,7 @@ func _update_arthur_stats() -> void:
 	xp_label.text = "XP: %d / %d" % [stats.xp, stats.xp_required]
 	xp_bar.max_value = stats.xp_required
 	xp_bar.value = stats.xp
+	attack_interval_label.text = "Attack interval: %.2f s" % arthur.attack_interval()
 
 
 func _on_arthur_leveled_up() -> void:
@@ -169,6 +179,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if not event.pressed or event.echo:
 		return
+	if event.keycode == KEY_F10:
+		wallet.add_gold(500)
+		loot_debug_label.text = "DEBUG: +500 Gold. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F9:
 		for item in loot_table.ITEMS:
 			inventory.add_item(item)
@@ -183,3 +198,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	loot_debug_label.text = "DEBUG: next kill drops " + debug_next_drop.display_name
 	get_viewport().set_input_as_handled()
+
+
+func _update_gold() -> void:
+	gold_label.text = "Gold: %d" % gold

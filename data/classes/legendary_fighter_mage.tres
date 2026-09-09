@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/class_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+class_id = "legendary_fighter_mage"
+display_name = "Legendary Fighter-Mage"
+description = "A legendary class combining physical combat and fire magic."
+skill_tree_id = "legendary_fighter_mage"

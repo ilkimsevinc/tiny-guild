@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/class_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+class_id = "fighter"
+display_name = "Fighter"
+description = "A physical combat class focused on strength and endurance."
+skill_tree_id = "fighter"

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SkillTreeData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/skill_tree_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/skill_node_data.gd" id="2"]
+[ext_resource type="Resource" path="res://data/skill_trees/knight/battle_training.tres" id="3"]
+[ext_resource type="Resource" path="res://data/skill_trees/knight/iron_body.tres" id="4"]
+[ext_resource type="Resource" path="res://data/skill_trees/knight/quick_strikes.tres" id="5"]
+[ext_resource type="Resource" path="res://data/skill_trees/knight/veteran.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+tree_id = "knight"
+class_id = "knight"
+display_name = "Knight Skill Tree"
+nodes = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])branches = {"foundation": "Foundation", "guardian": "Guardian", "vanguard": "Vanguard", "crusader": "Crusader"}

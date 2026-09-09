@@ -8,6 +8,9 @@ enum State { IDLE, MOVING, ATTACKING }
 
 const MOVE_SPEED: float = 180.0
 const MELEE_RANGE: float = 130.0
+const BASE_ATTACK_INTERVAL: float = 1.0
+
+@export var class_id: String = "knight"
 
 var state: State = State.IDLE
 var target: Node2D
@@ -19,11 +22,14 @@ var previous_hp_bonus: int = 0
 @onready var visuals: Node2D = $Visuals
 @onready var progression = $Progression
 @onready var equipment: Equipment = $Equipment
+@onready var skills: SkillTree = $Skills
 
 
 func _ready() -> void:
+	skills.load_class(class_id)
+	skills.changed.connect(_on_bonuses_changed)
 	attack_timer.timeout.connect(_on_attack_timer_timeout)
-	equipment.changed.connect(_on_equipment_changed)
+	equipment.changed.connect(_on_bonuses_changed)
 	progression.stats_changed.connect(func(): stats_changed.emit())
 	progression.leveled_up.connect(_restore_hp_after_level)
 
@@ -94,20 +100,30 @@ func _play_attack_feedback() -> void:
 	attack_tween.tween_property(visuals, "position:x", 0.0, 0.14)
 
 func total_attack() -> int:
-	return progression.damage + equipment.attack_bonus()
+	return progression.damage + equipment.attack_bonus() + skills.attack_bonus()
 
 
 func total_max_hp() -> int:
-	return progression.max_hp + equipment.max_hp_bonus()
+	return progression.max_hp + equipment.max_hp_bonus() + skills.max_hp_bonus()
 
 
-func _on_equipment_changed() -> void:
-	var hp_bonus: int = equipment.max_hp_bonus()
+func _on_bonuses_changed() -> void:
+	var hp_bonus: int = equipment.max_hp_bonus() + skills.max_hp_bonus()
 	# Positive max-HP changes add current HP; decreases only clamp it.
 	progression.current_hp = mini(progression.current_hp + maxi(hp_bonus - previous_hp_bonus, 0), total_max_hp())
 	previous_hp_bonus = hp_bonus
+	var interval: float = attack_interval()
+	if not is_equal_approx(attack_timer.wait_time, interval):
+		attack_timer.wait_time = interval
+		if state == State.ATTACKING:
+			# Begin a fresh interval when attack speed changes.
+			attack_timer.start()
 	stats_changed.emit()
 
 
 func _restore_hp_after_level() -> void:
 	progression.current_hp = total_max_hp()
+
+
+func attack_interval() -> float:
+	return BASE_ATTACK_INTERVAL / (1.0 + skills.attack_speed_percent() / 100.0)

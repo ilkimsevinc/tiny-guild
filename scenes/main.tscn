@@ -1,10 +1,13 @@
-[gd_scene load_steps=5 format=3 uid="uid://b8r5lwpndganx"]
+[gd_scene load_steps=7 format=3 uid="uid://b8r5lwpndganx"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/arthur.tscn" id="2"]
 
 [ext_resource type="Script" path="res://scripts/inventory.gd" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/inventory_panel.tscn" id="4"]
+
+[ext_resource type="Script" path="res://scripts/gold_wallet.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/skill_tree_panel.tscn" id="6"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -107,4 +110,25 @@ horizontal_alignment = 1
 [node name="Inventory" type="Node" parent="."]
 script = ExtResource("3")
 
-[node name="InventoryPanel" parent="UI" instance=ExtResource("4")]
+[node name="GoldWallet" type="Node" parent="."]
+script = ExtResource("5")
+
+[node name="Sidebar" type="TabContainer" parent="UI"]
+offset_left = 950.0
+offset_top = 16.0
+offset_right = 1270.0
+offset_bottom = 710.0
+
+[node name="Inventory" parent="UI/Sidebar" instance=ExtResource("4")]
+layout_mode = 2
+
+[node name="Skills" parent="UI/Sidebar" instance=ExtResource("6")]
+layout_mode = 2
+
+[node name="AttackIntervalLabel" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 433.0
+offset_right = 440.0
+theme_override_font_sizes/font_size = 17
+text = "Attack interval: 1.00 s"
+horizontal_alignment = 1

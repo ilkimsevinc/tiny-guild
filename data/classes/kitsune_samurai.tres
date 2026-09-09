@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ClassData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/class_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+class_id = "kitsune_samurai"
+display_name = "Kitsune Samurai"
+description = "A sword-focused class with counterattacks and foxfire themes."
+skill_tree_id = "kitsune_samurai"
