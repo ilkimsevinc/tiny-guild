@@ -9,4 +9,5 @@ display_name = "Old Shield"
 item_type = 2
 rarity = 0
 base_value = 15
-description = "An old shield with a few dents."
+description = "A battered shield with several dents and at least one suspicious bite mark."
+max_hp_bonus = 10

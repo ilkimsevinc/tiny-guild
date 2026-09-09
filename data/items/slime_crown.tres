@@ -9,4 +9,6 @@ display_name = "Slime Crown"
 item_type = 4
 rarity = 3
 base_value = 250
-description = "A curious purple crown fit for a tiny Slime."
+description = "A tiny crown once worn by a Slime with unreasonable ambitions."
+attack_bonus = 1
+xp_bonus_percent = 10

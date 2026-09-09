@@ -9,4 +9,4 @@ display_name = "Slime Gel"
 item_type = 0
 rarity = 0
 base_value = 5
-description = "A small glob of gel left behind by a Slime."
+description = "A sticky alchemical material harvested from Slimes."

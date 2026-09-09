@@ -7,11 +7,9 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
+const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = grant test items"
 
 var loot_table = LOOT_TABLE.new()
-var collected_items: Dictionary[String, int] = {}
-var collected_item_data: Dictionary[String, ItemData] = {}
-var recent_item_ids: Array[String] = []
 # Development only: F6/F7 override one kill, then normal rates resume.
 var debug_next_drop: ItemData
 
@@ -31,15 +29,18 @@ var spawn_on_right: bool = true
 @onready var xp_label: Label = $UI/XPLabel
 @onready var xp_bar: ProgressBar = $UI/XPBar
 @onready var ground_loot: Node2D = $GroundLoot
-@onready var loot_history: RichTextLabel = $UI/LootHistory
+@onready var inventory: Inventory = $Inventory
+@onready var inventory_ui = $UI/InventoryPanel
 @onready var loot_debug_label: Label = $UI/LootDebugLabel
 
 
 func _ready() -> void:
 	loot_debug_label.visible = OS.is_debug_build()
+	loot_debug_label.text = DEBUG_HINT
+	inventory_ui.setup(inventory, arthur.equipment)
 	arthur.attacked.connect(_on_arthur_attacked)
 	arthur.state_changed.connect(_on_arthur_state_changed)
-	arthur.progression.stats_changed.connect(_update_arthur_stats)
+	arthur.stats_changed.connect(_update_arthur_stats)
 	arthur.progression.leveled_up.connect(_on_arthur_leveled_up)
 	_update_arthur_stats()
 	respawn_timer.timeout.connect(_spawn_slime)
@@ -91,24 +92,26 @@ func _on_slime_died() -> void:
 	# Resolve death immediately; the Slime's visual finishes independently.
 	slime = null
 	arthur.set_target(null)
-	gold += GOLD_PER_SLIME
-	arthur.progression.add_xp(XP_PER_SLIME)
+	var gold_reward: int = arthur.equipment.gold_reward(GOLD_PER_SLIME)
+	var xp_reward: int = arthur.equipment.xp_reward(XP_PER_SLIME)
+	gold += gold_reward
+	arthur.progression.add_xp(xp_reward)
 	gold_label.text = "Gold: %d" % gold
-	status_label.text = "Slime defeated! +10 Gold, +15 XP. Next Slime in 2 seconds..."
+	status_label.text = "Slime defeated! +%d Gold, +%d XP. Next Slime in 2 seconds..." % [gold_reward, xp_reward]
 	respawn_timer.start()
-	_show_floating_text("+10 Gold", defeated_position + Vector2(0, -65), Color(1, 0.82, 0.35))
+	_show_floating_text("+%d Gold" % gold_reward, defeated_position + Vector2(0, -65), Color(1, 0.82, 0.35))
 	var drop: ItemData = loot_table.roll()
 	if OS.is_debug_build() and debug_next_drop != null:
 		drop = debug_next_drop
 		debug_next_drop = null
-		loot_debug_label.text = "DEBUG loot: F6 = next Rare | F7 = next Epic"
+		loot_debug_label.text = DEBUG_HINT
 	if drop != null:
 		_spawn_ground_loot(drop, defeated_position)
 
 func _update_arthur_stats() -> void:
 	var stats = arthur.progression
 	arthur_label.text = "Arthur - Knight | Level %d\nDamage: %d | HP: %d / %d" % [
-		stats.level, stats.damage, stats.current_hp, stats.max_hp
+		stats.level, arthur.total_attack(), stats.current_hp, arthur.total_max_hp()
 	]
 	xp_label.text = "XP: %d / %d" % [stats.xp, stats.xp_required]
 	xp_bar.max_value = stats.xp_required
@@ -147,11 +150,7 @@ func _spawn_ground_loot(item: ItemData, drop_position: Vector2) -> Node2D:
 
 
 func _on_loot_picked_up(item: ItemData) -> void:
-	collected_items[item.id] = collected_items.get(item.id, 0) + 1
-	collected_item_data[item.id] = item
-	recent_item_ids.erase(item.id)
-	recent_item_ids.push_front(item.id)
-	_update_loot_history()
+	inventory.add_item(item)
 	var message: String = "Picked up " + item.display_name
 	var font_size: int = 18
 	var duration: float = 0.8
@@ -163,20 +162,18 @@ func _on_loot_picked_up(item: ItemData) -> void:
 		item.rarity_color(), font_size, duration)
 
 
-func _update_loot_history() -> void:
-	loot_history.text = "[b]Loot (collected)[/b]"
-	for item_id in recent_item_ids.slice(0, 5):
-		var item: ItemData = collected_item_data[item_id]
-		loot_history.text += "\n[color=#%s]%s x%d[/color]" % [
-			item.rarity_color().to_html(false), item.display_name, collected_items[item_id]
-		]
-
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	# Temporary manual testing controls, disabled in release builds.
 	if not OS.is_debug_build() or not event is InputEventKey:
 		return
 	if not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_F9:
+		for item in loot_table.ITEMS:
+			inventory.add_item(item)
+		loot_debug_label.text = "DEBUG: granted one of each test item. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F6:
 		debug_next_drop = preload("res://data/items/slime_ring.tres")

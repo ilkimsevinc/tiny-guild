@@ -9,4 +9,5 @@ display_name = "Slime Ring"
 item_type = 3
 rarity = 2
 base_value = 100
-description = "A blue ring found inside a Slime."
+description = "A translucent ring that somehow smells faintly of grass."
+gold_bonus_percent = 5

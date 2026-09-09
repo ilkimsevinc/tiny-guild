@@ -2,6 +2,7 @@ extends Node2D
 
 signal attacked(target: Node2D, damage: int)
 signal state_changed(state_name: String)
+signal stats_changed
 
 enum State { IDLE, MOVING, ATTACKING }
 
@@ -12,14 +13,19 @@ var state: State = State.IDLE
 var target: Node2D
 var loot_target: Node2D
 var attack_tween: Tween
+var previous_hp_bonus: int = 0
 
 @onready var attack_timer: Timer = $AttackTimer
 @onready var visuals: Node2D = $Visuals
 @onready var progression = $Progression
+@onready var equipment: Equipment = $Equipment
 
 
 func _ready() -> void:
 	attack_timer.timeout.connect(_on_attack_timer_timeout)
+	equipment.changed.connect(_on_equipment_changed)
+	progression.stats_changed.connect(func(): stats_changed.emit())
+	progression.leveled_up.connect(_restore_hp_after_level)
 
 
 func set_target(new_target: Node2D) -> void:
@@ -75,7 +81,7 @@ func _on_attack_timer_timeout() -> void:
 	_play_attack_feedback()
 	# Keep the emitted target stable if a listener clears it on death.
 	var attack_target: Node2D = target
-	var attack_damage: int = progression.damage
+	var attack_damage: int = total_attack()
 	attacked.emit(attack_target, attack_damage)
 
 
@@ -86,3 +92,22 @@ func _play_attack_feedback() -> void:
 	attack_tween = create_tween()
 	attack_tween.tween_property(visuals, "position:x", 12.0 * visuals.scale.x, 0.08)
 	attack_tween.tween_property(visuals, "position:x", 0.0, 0.14)
+
+func total_attack() -> int:
+	return progression.damage + equipment.attack_bonus()
+
+
+func total_max_hp() -> int:
+	return progression.max_hp + equipment.max_hp_bonus()
+
+
+func _on_equipment_changed() -> void:
+	var hp_bonus: int = equipment.max_hp_bonus()
+	# Positive max-HP changes add current HP; decreases only clamp it.
+	progression.current_hp = mini(progression.current_hp + maxi(hp_bonus - previous_hp_bonus, 0), total_max_hp())
+	previous_hp_bonus = hp_bonus
+	stats_changed.emit()
+
+
+func _restore_hp_after_level() -> void:
+	progression.current_hp = total_max_hp()

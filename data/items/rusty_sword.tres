@@ -9,4 +9,5 @@ display_name = "Rusty Sword"
 item_type = 1
 rarity = 0
 base_value = 20
-description = "A worn sword with a rusty blade."
+description = "Old, blunt and slightly embarrassing. Still better than bare hands."
+attack_bonus = 2

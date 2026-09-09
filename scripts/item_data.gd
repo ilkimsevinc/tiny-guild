@@ -10,6 +10,10 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC }
 @export var rarity: Rarity = Rarity.COMMON
 @export var base_value: int = 0
 @export_multiline var description: String = ""
+@export var attack_bonus: int = 0
+@export var max_hp_bonus: int = 0
+@export var gold_bonus_percent: int = 0
+@export var xp_bonus_percent: int = 0
 
 
 func rarity_name() -> String:
@@ -28,3 +32,19 @@ func rarity_color() -> Color:
 
 func is_rare_or_higher() -> bool:
 	return rarity >= Rarity.RARE
+
+func is_equippable() -> bool:
+	return item_type != ItemType.MATERIAL
+
+
+func bonus_description() -> String:
+	var lines: Array[String] = []
+	if attack_bonus != 0:
+		lines.append("%+d Attack" % attack_bonus)
+	if max_hp_bonus != 0:
+		lines.append("%+d Max HP" % max_hp_bonus)
+	if gold_bonus_percent != 0:
+		lines.append("%+d%% Gold from Slime kills" % gold_bonus_percent)
+	if xp_bonus_percent != 0:
+		lines.append("%+d%% XP from Slime kills" % xp_bonus_percent)
+	return "\n".join(lines) if not lines.is_empty() else "No combat bonuses."

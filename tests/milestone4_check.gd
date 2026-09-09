@@ -106,19 +106,19 @@ func run_check() -> void:
 	await create_timer(0.95).timeout
 	check(is_instance_valid(rare_effect), "I: Rare feedback lasts longer than ordinary 0.8-second text")
 	await create_timer(1.0).timeout
-	check(is_instance_valid(loot) and main.collected_items.is_empty(), "Ground loot persists uncollected outside pickup range")
+	check(is_instance_valid(loot) and main.inventory.get_items().is_empty(), "Ground loot persists uncollected outside pickup range")
 	main.arthur.position = loot.position
 	main._physics_process(0.0)
 	loot.collect()
 	await process_frame
 	check(not is_instance_valid(loot), "E: Nearby pickup removes GroundLoot")
-	check(main.collected_items.get("slime_ring") == 1, "F: Pickup is stored exactly once")
+	check(main.inventory.quantity("slime_ring") == 1, "F: Pickup is stored exactly once")
 	check(is_instance_valid(find_text("RARE PICKUP: Slime Ring")), "Rare pickup includes rarity")
 	for index in range(3):
 		main._spawn_ground_loot(gel, main.arthur.position)
 	main._physics_process(0.0)
 	await process_frame
-	check(main.collected_items.get("slime_gel") == 3 and main.loot_history.text.contains("Slime Gel x3"),
+	check(main.inventory.quantity("slime_gel") == 3 and main.inventory_ui.inventory_list.get_item_text(1) == "Slime Gel x3",
 		"F: Duplicate materials stack by ID and update history")
 	check(main.arthur.progression.damage == 10 and main.gold == 0
 		and main.arthur.progression.xp == 0, "Collecting items does not equip them or alter combat rewards")
@@ -137,7 +137,7 @@ func run_check() -> void:
 		and main.ground_loot.get_child(0).item == ring, "One kill produces exactly one forced Rare")
 	check(main.debug_next_drop == null, "Debug override consumed after one kill")
 	var death_time: int = Time.get_ticks_msec()
-	if not await wait_for(func(): return main.collected_items.get("slime_ring", 0) == 1, 1.5):
+	if not await wait_for(func(): return main.inventory.quantity("slime_ring") == 1, 1.5):
 		return
 	check(main.arthur.position.x > 590.0, "Arthur walks into the small pickup range during respawn pause")
 	await capture("m4-rare-pickup")
@@ -155,11 +155,11 @@ func run_check() -> void:
 		"Leveling and increased damage preserved")
 	await capture("m4-epic")
 	main.loot_table.rng.seed = no_drop_seed
-	if not await wait_for(func(): return main.collected_items.get("slime_crown", 0) == 1, 1.5):
+	if not await wait_for(func(): return main.inventory.quantity("slime_crown") == 1, 1.5):
 		return
 	if not await wait_for(func(): return main.gold == 30):
 		return
-	check(main.ground_loot.get_child_count() == 0 and main.collected_items.size() == 2,
+	check(main.ground_loot.get_child_count() == 0 and main.inventory.get_items().size() == 2,
 		"A: Normal no-drop resumes after debug override")
 	check(main.arthur.progression.xp == 15, "No-drop kill still awards XP")
 	print("Milestone 4 check finished: %d failures" % failures)
