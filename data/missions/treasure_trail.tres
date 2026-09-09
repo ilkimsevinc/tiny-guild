@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "treasure_trail"
+display_name = "Treasure Trail"
+description = "Follow an old treasure route through a dangerous section of the forest."
+difficulty = "HARD"
+recommended_level = 3
+encounter_count = 8
+base_gold_reward = 40
+base_xp_reward = 80
+loot_identity = "Higher equipment rarity chance"
+estimated_duration_text = "Long"
+rare_weight_multiplier = 1.5
+tags = Array[String](["forest", "treasure"])

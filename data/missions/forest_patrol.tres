@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "forest_patrol"
+display_name = "Forest Patrol"
+description = "Patrol the edge of Whispering Forest and clear nearby Slimes."
+difficulty = "EASY"
+recommended_level = 1
+encounter_count = 3
+base_gold_reward = 30
+base_xp_reward = 30
+loot_identity = "Balanced / Common"
+estimated_duration_text = "Short"
+tags = Array[String](["forest", "slime"])

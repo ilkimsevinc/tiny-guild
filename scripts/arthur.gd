@@ -12,6 +12,8 @@ const BASE_ATTACK_INTERVAL: float = 1.0
 
 @export var class_id: String = "knight"
 
+# Guild assignment is separate from the movement/combat state.
+var guild_status: String = "IDLE_AT_GUILD"
 var state: State = State.IDLE
 var target: Node2D
 var loot_target: Node2D

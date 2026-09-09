@@ -118,6 +118,7 @@ func run_check() -> void:
 	wallet.free()
 
 	main = MAIN_SCENE.instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	main.arthur.set_physics_process(false)
 	var sidebar: TabContainer = main.get_node("UI/Sidebar")

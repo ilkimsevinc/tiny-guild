@@ -91,6 +91,7 @@ func run_check() -> void:
 
 	# Pause movement while inspecting ground lifetime and presentation.
 	main = MAIN_SCENE.instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	main.set_physics_process(false)
 	main.arthur.set_physics_process(false)
@@ -127,6 +128,7 @@ func run_check() -> void:
 
 	# Real combat: force one Rare, one Epic, then verify the override is consumed.
 	main = MAIN_SCENE.instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	debug_key(KEY_F6)
 	check(main.debug_next_drop == ring, "Debug F6 forces next Rare")

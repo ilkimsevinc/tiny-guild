@@ -44,7 +44,7 @@ func bonus_description() -> String:
 	if max_hp_bonus != 0:
 		lines.append("%+d Max HP" % max_hp_bonus)
 	if gold_bonus_percent != 0:
-		lines.append("%+d%% Gold from Slime kills" % gold_bonus_percent)
+		lines.append("%+d%% Gold rewards" % gold_bonus_percent)
 	if xp_bonus_percent != 0:
-		lines.append("%+d%% XP from Slime kills" % xp_bonus_percent)
+		lines.append("%+d%% XP rewards" % xp_bonus_percent)
 	return "\n".join(lines) if not lines.is_empty() else "No combat bonuses."

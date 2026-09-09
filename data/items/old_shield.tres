@@ -1,13 +1,12 @@
-[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ItemData" format=3 uid="uid://c7efwota2y05j"]
 
-[ext_resource type="Script" path="res://scripts/item_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://68m1i1657i02" path="res://scripts/item_data.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
 id = "old_shield"
 display_name = "Old Shield"
 item_type = 2
-rarity = 0
 base_value = 15
 description = "A battered shield with several dents and at least one suspicious bite mark."
 max_hp_bonus = 10

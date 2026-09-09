@@ -7,8 +7,10 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F8 = defeat encounter | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
 
+# Only automated legacy tests opt into this before adding Main to the tree.
+var debug_combat_mode: bool = false
 var loot_table = LOOT_TABLE.new()
 # Development only: F6/F7 override one kill, then normal rates resume.
 var debug_next_drop: ItemData
@@ -20,6 +22,10 @@ var gold: int:
 var slime: Node2D
 var spawn_on_right: bool = true
 
+@onready var mission_run: MissionRun = $MissionRun
+@onready var expedition_ui = $UI/ExpeditionPanel
+@onready var board_button: Button = $UI/BoardButton
+@onready var mission_label: Label = $UI/MissionLabel
 @onready var arthur = $Arthur
 @onready var slime_spawn: Marker2D = $SlimeSpawn
 @onready var alternate_spawn: Marker2D = $AlternateSlimeSpawn
@@ -56,12 +62,32 @@ func _ready() -> void:
 	arthur.stats_changed.connect(_update_arthur_stats)
 	arthur.progression.leveled_up.connect(_on_arthur_leveled_up)
 	_update_arthur_stats()
-	respawn_timer.timeout.connect(_spawn_slime)
+	respawn_timer.timeout.connect(_on_encounter_delay_finished)
 	gold_label.text = "Gold: %d" % gold
-	_spawn_slime()
+	debug_combat_mode = debug_combat_mode and OS.is_debug_build()
+	mission_run.encounter_requested.connect(_spawn_slime)
+	mission_run.completed.connect(_on_mission_completed)
+	mission_run.changed.connect(_update_mission_status)
+	expedition_ui.setup(mission_run, arthur)
+	expedition_ui.dispatch_requested.connect(start_mission)
+	expedition_ui.continue_requested.connect(_on_summary_continue)
+	board_button.pressed.connect(expedition_ui.show_board)
+	if debug_combat_mode:
+		expedition_ui.hide()
+		board_button.hide()
+		mission_label.text = "DEBUG: endless combat regression mode"
+		_spawn_slime()
+	else:
+		hp_label.text = "No active encounter"
+		status_label.text = "Choose a mission from the Expedition Board."
+		_update_mission_status()
 
 
 func _spawn_slime() -> void:
+	if is_instance_valid(slime):
+		return
+	if not debug_combat_mode and (mission_run.mission_state != MissionRun.State.IN_PROGRESS or not mission_run.encounter_active):
+		return
 	slime = SLIME_SCENE.instantiate()
 	# Alternate sides so every respawn gives Arthur another short walk.
 	slime.position = slime_spawn.position if spawn_on_right else alternate_spawn.position
@@ -82,7 +108,10 @@ func _on_arthur_attacked(target: Node2D, damage: int) -> void:
 
 
 func _on_arthur_state_changed(state_name: String) -> void:
-	state_label.text = "Arthur: " + state_name
+	if debug_combat_mode:
+		state_label.text = "Arthur: " + state_name
+	else:
+		state_label.text = "Arthur: " + arthur.guild_status.replace("_", " ").capitalize()
 
 
 func _on_slime_damaged(amount: int) -> void:
@@ -101,25 +130,36 @@ func _update_slime_hp(current_hp: int) -> void:
 
 
 func _on_slime_died() -> void:
+	if not is_instance_valid(slime):
+		return
 	var defeated_position: Vector2 = slime.position
 	# Resolve death immediately; the Slime's visual finishes independently.
 	slime = null
 	arthur.set_target(null)
-	var gold_reward: int = RewardCalculator.calculate(GOLD_PER_SLIME, arthur.equipment.gold_bonus_percent(), guild_mastery.global_gold_multiplier)
-	var xp_reward: int = RewardCalculator.calculate(XP_PER_SLIME, arthur.equipment.xp_bonus_percent(), guild_mastery.global_xp_multiplier)
+	var gold_reward: int = _gold_reward(GOLD_PER_SLIME)
+	var xp_reward: int = _xp_reward(XP_PER_SLIME)
 	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
 	gold_label.text = "Gold: %d" % gold
 	status_label.text = "Slime defeated! +%d Gold, +%d XP. Next Slime in 2 seconds..." % [gold_reward, xp_reward]
-	respawn_timer.start()
 	_show_floating_text("+%d Gold" % gold_reward, defeated_position + Vector2(0, -65), Color(1, 0.82, 0.35))
-	var drop: ItemData = loot_table.roll()
+	var drop: ItemData
+	if debug_combat_mode:
+		drop = loot_table.roll()
+	else:
+		drop = loot_table.roll(mission_run.mission.item_weight_multiplier, mission_run.mission.rare_weight_multiplier)
 	if OS.is_debug_build() and debug_next_drop != null:
 		drop = debug_next_drop
 		debug_next_drop = null
 		loot_debug_label.text = DEBUG_HINT
 	if drop != null:
 		_spawn_ground_loot(drop, defeated_position)
+	if debug_combat_mode:
+		respawn_timer.start()
+	else:
+		mission_run.record_defeat(gold_reward, xp_reward)
+		if mission_run.mission_state == MissionRun.State.IN_PROGRESS:
+			respawn_timer.start()
 
 func _update_arthur_stats() -> void:
 	var stats = arthur.progression
@@ -165,6 +205,8 @@ func _spawn_ground_loot(item: ItemData, drop_position: Vector2) -> Node2D:
 
 func _on_loot_picked_up(item: ItemData) -> void:
 	inventory.add_item(item)
+	if not debug_combat_mode:
+		mission_run.record_loot(item)
 	var message: String = "Picked up " + item.display_name
 	var font_size: int = 18
 	var duration: float = 0.8
@@ -182,6 +224,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not OS.is_debug_build() or not event is InputEventKey:
 		return
 	if not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_F8:
+		if is_instance_valid(slime):
+			slime.take_damage(slime.hp)
+		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F11:
 		wallet.add_gold(1000)
@@ -216,3 +263,70 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _update_gold() -> void:
 	gold_label.text = "Gold: %d" % gold
+
+func start_mission(data: MissionData) -> bool:
+	if debug_combat_mode or not mission_run.can_start():
+		return false
+	arthur.guild_status = "ON_EXPEDITION"
+	if not mission_run.start(data):
+		arthur.guild_status = "IDLE_AT_GUILD"
+		return false
+	expedition_ui.hide()
+	return true
+
+func _on_encounter_delay_finished() -> void:
+	if debug_combat_mode:
+		_spawn_slime()
+	else:
+		mission_run.start_next_encounter()
+
+func _gold_reward(base: int) -> int:
+	return RewardCalculator.calculate(base, arthur.equipment.gold_bonus_percent(), guild_mastery.global_gold_multiplier)
+
+func _xp_reward(base: int) -> int:
+	return RewardCalculator.calculate(base, arthur.equipment.xp_bonus_percent(), guild_mastery.global_xp_multiplier)
+
+func _on_mission_completed() -> void:
+	var gold_reward: int = _gold_reward(mission_run.mission.base_gold_reward)
+	var xp_reward: int = _xp_reward(mission_run.mission.base_xp_reward)
+	if not mission_run.claim_completion_reward(gold_reward, xp_reward):
+		return
+	respawn_timer.stop()
+	arthur.set_target(null)
+	wallet.add_gold(gold_reward)
+	arthur.progression.add_xp(xp_reward)
+	status_label.text = "MISSION COMPLETE! Collecting loot before returning..."
+	_show_floating_text("MISSION COMPLETE", arthur.position + Vector2(0, -200), Color(0.5, 1, 0.7), 28, 1.2)
+	await get_tree().create_timer(0.5).timeout
+	# Keep normal movement/pickup active until the last drop reaches inventory.
+	while ground_loot.get_child_count() > 0:
+		await get_tree().physics_frame
+	mission_run.begin_return()
+	arthur.guild_status = "RETURNING"
+	_update_mission_status()
+	status_label.text = "Arthur is returning to the Guild..."
+	await get_tree().create_timer(1.0).timeout
+	arthur.position = Vector2(240, 350)
+	arthur.visuals.scale.x = 1.0
+	arthur.guild_status = "IDLE_AT_GUILD"
+	mission_run.finish_return()
+	hp_label.text = "No active encounter"
+	status_label.text = "Arthur is back at the Guild. Review the mission summary."
+	expedition_ui.show_summary()
+
+func _on_summary_continue() -> void:
+	if mission_run.acknowledge_summary():
+		status_label.text = "Choose the next mission manually."
+		expedition_ui.show_board()
+
+func _update_mission_status() -> void:
+	if debug_combat_mode:
+		return
+	state_label.text = "Arthur: " + arthur.guild_status.replace("_", " ").capitalize()
+	board_button.disabled = not mission_run.can_start()
+	if mission_run.mission == null:
+		mission_label.text = ""
+	else:
+		mission_label.text = "Mission: %s | Encounter %d / %d | %s" % [
+			mission_run.mission.display_name, mission_run.current_encounter,
+			mission_run.total_encounters, MissionRun.State.keys()[mission_run.mission_state]]

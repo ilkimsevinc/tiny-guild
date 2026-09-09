@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "slime_nest"
+display_name = "Slime Nest"
+description = "A dense Slime colony has formed near the old forest trail."
+difficulty = "MEDIUM"
+recommended_level = 2
+encounter_count = 6
+base_gold_reward = 70
+base_xp_reward = 60
+loot_identity = "Higher Slime loot chance"
+estimated_duration_text = "Medium"
+item_weight_multiplier = 1.25
+tags = Array[String](["forest", "slime"])

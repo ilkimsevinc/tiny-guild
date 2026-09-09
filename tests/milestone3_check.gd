@@ -62,6 +62,7 @@ func run_check() -> void:
 	stats.free()
 
 	main = load("res://scenes/main.tscn").instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	main.arthur.attacked.connect(on_attack)
 	var hero_stats = main.arthur.progression

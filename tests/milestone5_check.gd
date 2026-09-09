@@ -98,6 +98,7 @@ func run_check() -> void:
 	equipment.free()
 
 	main = MAIN_SCENE.instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	main.arthur.set_physics_process(false)
 	var arthur = main.arthur
@@ -138,6 +139,7 @@ func run_check() -> void:
 
 	# Exercise the real controls through viewport mouse input, with combat paused.
 	main = MAIN_SCENE.instantiate()
+	main.debug_combat_mode = true # Explicit legacy combat regression mode.
 	root.add_child(main)
 	main.arthur.set_physics_process(false)
 	var key := InputEventKey.new()
