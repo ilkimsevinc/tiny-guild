@@ -110,6 +110,6 @@ func run_check() -> void:
 		and main.arthur.skills.tree.tree_id == "knight", "Arthur retrieves Knight tree through ClassData")
 	check(main.skill_ui.title.text.contains("Arthur") and main.skill_ui.title.text.contains("Knight"),
 		"Gameplay panel header shows Arthur and Knight")
-	check(main.get_node("UI/Sidebar").get_tab_count() == 2, "No extra future-class UI tabs or characters")
+	check(main.get_node("UI/Sidebar").get_tab_count() == 3, "Only Inventory, Class Skills, and Guild Mastery tabs; no future-class tabs")
 	print("Class foundation check finished: %d failures" % failures)
 	quit(1 if failures > 0 else 0)

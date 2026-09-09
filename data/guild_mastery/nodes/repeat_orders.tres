@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MasteryNodeData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/mastery_node_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "repeat_orders"
+display_name = "Repeat Orders"
+description = "Future option to repeat the same expedition automatically."
+branch_id = "automation"
+tier = 1
+gold_cost = 250
+guild_token_cost = 0
+prerequisite_ids = Array[String]([])
+effect_value = {}
+max_rank = 1
+implemented = false
+unlock_tags = Array[String](["repeat_expedition"])

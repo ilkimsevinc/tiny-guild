@@ -7,7 +7,7 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = test items | F10 = +500 Gold"
+const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
 
 var loot_table = LOOT_TABLE.new()
 # Development only: F6/F7 override one kill, then normal rates resume.
@@ -36,6 +36,8 @@ var spawn_on_right: bool = true
 @onready var inventory_ui = $UI/Sidebar/Inventory
 @onready var skill_ui = $UI/Sidebar/Skills
 @onready var wallet: GoldWallet = $GoldWallet
+@onready var guild_mastery: GuildMasteryState = $GuildMastery
+@onready var mastery_ui = $UI/Sidebar/Mastery
 @onready var attack_interval_label: Label = $UI/AttackIntervalLabel
 @onready var loot_debug_label: Label = $UI/LootDebugLabel
 
@@ -45,7 +47,9 @@ func _ready() -> void:
 	loot_debug_label.text = DEBUG_HINT
 	inventory_ui.setup(inventory, arthur.equipment)
 	skill_ui.setup(arthur.skills, wallet, arthur.name)
-	$UI/Sidebar.set_tab_title(1, arthur.skills.tree.display_name)
+	mastery_ui.setup(guild_mastery, wallet)
+	$UI/Sidebar.set_tab_title(1, "Class Skills")
+	$UI/Sidebar.set_tab_title(2, "Guild Mastery")
 	wallet.changed.connect(_update_gold)
 	arthur.attacked.connect(_on_arthur_attacked)
 	arthur.state_changed.connect(_on_arthur_state_changed)
@@ -101,8 +105,8 @@ func _on_slime_died() -> void:
 	# Resolve death immediately; the Slime's visual finishes independently.
 	slime = null
 	arthur.set_target(null)
-	var gold_reward: int = arthur.equipment.gold_reward(GOLD_PER_SLIME)
-	var xp_reward: int = arthur.equipment.xp_reward(XP_PER_SLIME)
+	var gold_reward: int = RewardCalculator.calculate(GOLD_PER_SLIME, arthur.equipment.gold_bonus_percent(), guild_mastery.global_gold_multiplier)
+	var xp_reward: int = RewardCalculator.calculate(XP_PER_SLIME, arthur.equipment.xp_bonus_percent(), guild_mastery.global_xp_multiplier)
 	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
 	gold_label.text = "Gold: %d" % gold
@@ -178,6 +182,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not OS.is_debug_build() or not event is InputEventKey:
 		return
 	if not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_F11:
+		wallet.add_gold(1000)
+		loot_debug_label.text = "DEBUG: +1000 Gold. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_F12:
+		wallet.add_guild_tokens(10)
+		loot_debug_label.text = "DEBUG: +10 Guild Tokens. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F10:
 		wallet.add_gold(500)

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="GuildMasteryTreeData" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/guild_mastery_tree_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/mastery_node_data.gd" id="2"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/coin_pouch_1.tres" id="3"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/coin_pouch_2.tres" id="4"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/shared_experience_1.tres" id="5"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/shared_experience_2.tres" id="6"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/trail_knowledge.tres" id="7"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/repeat_orders.tres" id="8"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/notice_board.tres" id="9"]
+[ext_resource type="Resource" path="res://data/guild_mastery/nodes/sleeping_guild.tres" id="10"]
+
+[resource]
+script = ExtResource("1")
+tree_id = "guild_mastery"
+display_name = "Guild Mastery"
+branches = {"economy": "Economy", "training": "Training", "expedition": "Expedition", "operations": "Operations", "loot": "Loot", "automation": "Automation", "portal": "Portal", "offline": "Offline"}
+nodes = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("8"), ExtResource("9"), ExtResource("10")])

@@ -1,0 +1,56 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/guild_mastery_panel.gd" id="1"]
+
+[node name="GuildMasteryPanel" type="PanelContainer"]
+script = ExtResource("1")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="Column" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Margin/Column"]
+layout_mode = 2
+text = "GUILD MASTERY"
+theme_override_font_sizes/font_size = 19
+
+[node name="Currencies" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+
+[node name="Modifiers" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Column"]
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Branches" type="VBoxContainer" parent="Margin/Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Details" type="RichTextLabel" parent="Margin/Column"]
+custom_minimum_size = Vector2(0, 190)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/normal_font_size = 15
+theme_override_font_sizes/bold_font_size = 15
+bbcode_enabled = true
+
+[node name="Reason" type="Label" parent="Margin/Column"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Buy" type="Button" parent="Margin/Column"]
+layout_mode = 2
+text = "BUY"
+disabled = true

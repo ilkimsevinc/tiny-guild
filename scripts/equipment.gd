@@ -75,8 +75,8 @@ func xp_bonus_percent() -> int:
 
 # Round positive rewards to the nearest integer, with halves rounded up.
 func gold_reward(base_reward: int) -> int:
-	return roundi(base_reward * (100 + gold_bonus_percent()) / 100.0)
+	return RewardCalculator.calculate(base_reward, gold_bonus_percent())
 
 
 func xp_reward(base_reward: int) -> int:
-	return roundi(base_reward * (100 + xp_bonus_percent()) / 100.0)
+	return RewardCalculator.calculate(base_reward, xp_bonus_percent())
