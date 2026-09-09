@@ -10,6 +10,7 @@ const MELEE_RANGE: float = 130.0
 
 var state: State = State.IDLE
 var target: Node2D
+var loot_target: Node2D
 var attack_tween: Tween
 
 @onready var attack_timer: Timer = $AttackTimer
@@ -28,7 +29,15 @@ func set_target(new_target: Node2D) -> void:
 
 func _physics_process(delta: float) -> void:
 	if not is_instance_valid(target):
-		_set_state(State.IDLE)
+		# Use the respawn pause to approach loot; combat always has priority.
+		if is_instance_valid(loot_target):
+			_set_state(State.MOVING)
+			var loot_offset: Vector2 = loot_target.global_position - global_position
+			if not is_zero_approx(loot_offset.x):
+				visuals.scale.x = signf(loot_offset.x)
+			global_position = global_position.move_toward(loot_target.global_position, MOVE_SPEED * delta)
+		else:
+			_set_state(State.IDLE)
 		return
 
 	var offset: Vector2 = target.global_position - global_position

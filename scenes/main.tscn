@@ -27,6 +27,8 @@ position = Vector2(300, 350)
 wait_time = 2.0
 one_shot = true
 
+[node name="GroundLoot" type="Node2D" parent="."]
+
 [node name="UI" type="CanvasLayer" parent="."]
 
 [node name="Title" type="Label" parent="UI"]
@@ -89,3 +91,24 @@ offset_bottom = 132.0
 mouse_filter = 2
 max_value = 30.0
 show_percentage = false
+
+[node name="LootHistory" type="RichTextLabel" parent="UI"]
+offset_left = 40.0
+offset_top = 120.0
+offset_right = 310.0
+offset_bottom = 230.0
+mouse_filter = 2
+theme_override_font_sizes/normal_font_size = 16
+theme_override_font_sizes/bold_font_size = 16
+bbcode_enabled = true
+text = "[b]Loot (collected)[/b]\nNone yet"
+scroll_active = false
+
+[node name="LootDebugLabel" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 513.0
+offset_right = 920.0
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
+text = "DEBUG loot: F6 = next Rare | F7 = next Epic"
+horizontal_alignment = 1
