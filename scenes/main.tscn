@@ -1,0 +1,65 @@
+[gd_scene load_steps=3 format=3 uid="uid://b8r5lwpndganx"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/kael.tscn" id="2"]
+
+[node name="Main" type="Node2D" unique_id=515317149]
+script = ExtResource("1")
+
+[node name="Background" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, 0, 960, 0, 960, 540, 0, 540)
+color = Color(0.09, 0.12, 0.18, 1)
+
+[node name="Ground" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(80, 350, 880, 350, 880, 354, 80, 354)
+color = Color(0.3, 0.36, 0.43, 1)
+
+[node name="Kael" parent="." instance=ExtResource("2")]
+position = Vector2(240, 350)
+
+[node name="SlimeSpawn" type="Marker2D" parent="."]
+position = Vector2(720, 350)
+
+[node name="RespawnTimer" type="Timer" parent="."]
+wait_time = 2.0
+one_shot = true
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Title" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 28.0
+theme_override_font_sizes/font_size = 32
+text = "Tiny Guild"
+
+[node name="GoldLabel" type="Label" parent="UI"]
+offset_left = 680.0
+offset_top = 34.0
+offset_right = 920.0
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 26
+text = "Gold: 0"
+horizontal_alignment = 2
+
+[node name="KaelLabel" type="Label" parent="UI"]
+offset_left = 100.0
+offset_top = 370.0
+offset_right = 380.0
+theme_override_font_sizes/font_size = 22
+text = "Kael — Knight\n10 damage / second"
+horizontal_alignment = 1
+
+[node name="SlimeHPLabel" type="Label" parent="UI"]
+offset_left = 580.0
+offset_top = 370.0
+offset_right = 860.0
+theme_override_font_sizes/font_size = 22
+text = "Slime HP: 30 / 30"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 470.0
+offset_right = 920.0
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
