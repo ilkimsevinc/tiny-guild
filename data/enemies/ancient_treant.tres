@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/enemy_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "ancient_treant"
+display_name = "Ancient Treant"
+max_hp = 150
+gold_reward = 0
+xp_reward = 0
+enemy_type = "BOSS"
+loot_profile = "none"
+completion_loot_profile = "ancient_treant"
+placeholder_color = Color(0.55, 0.34, 0.15, 1)
+placeholder_scale = 1.6
+placeholder_polygon = PackedVector2Array(-60, 0, -28, -20, -30, -65, -58, -80, -62, -105, -42, -88, -24, -95, -16, -120, 15, -120, 25, -95, 44, -88, 62, -105, 58, -80, 30, -65, 28, -20, 60, 0, 12, -8, 0, 0, -12, -8)

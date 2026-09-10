@@ -1,7 +1,7 @@
 class_name ItemData
 extends Resource
 
-enum ItemType { MATERIAL, WEAPON, ARMOR, ACCESSORY, RELIC }
+enum ItemType { MATERIAL, WEAPON, ARMOR, ACCESSORY, RELIC, RELIC_MATERIAL }
 enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC }
 
 @export var id: String = ""
@@ -34,7 +34,7 @@ func is_rare_or_higher() -> bool:
 	return rarity >= Rarity.RARE
 
 func is_equippable() -> bool:
-	return item_type != ItemType.MATERIAL
+	return item_type not in [ItemType.MATERIAL, ItemType.RELIC_MATERIAL]
 
 
 func bonus_description() -> String:

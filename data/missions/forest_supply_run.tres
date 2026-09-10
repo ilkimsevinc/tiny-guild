@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "forest_supply_run"
+display_name = "Forest Supply Run"
+description = "Guild supplies are running low. Clear the forest path and recover usable materials."
+special_type = "NORMAL"
+requires_manual_attention = true
+difficulty = "MEDIUM"
+recommended_level = 2
+encounter_count = 4
+energy_cost_per_encounter = 16
+base_gold_reward = 50
+base_xp_reward = 40
+loot_identity = "Improved forest materials"
+material_weight_multiplier = 1.25
+estimated_duration_text = "Short"

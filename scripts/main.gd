@@ -7,7 +7,7 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: F6 = next Rare | F7 = next Epic | F8 = defeat encounter | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F6 = next Rare | F7 = next Epic | F8 = defeat encounter | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
 
 # Only automated legacy tests opt into this before adding Main to the tree.
 var debug_combat_mode: bool = false
@@ -22,6 +22,10 @@ var gold: int:
 var slime: Node2D
 var spawn_on_right: bool = true
 
+var last_defeated_position: Vector2
+var notification_tween: Tween
+@onready var board_rotation: MissionBoardRotation = $MissionBoardRotation
+@onready var notification_label: Label = $UI/OpportunityNotification
 var return_in_progress: bool = false
 @onready var energy_label: Label = $UI/EnergyLabel
 @onready var energy_bar: ProgressBar = $UI/EnergyBar
@@ -72,8 +76,11 @@ func _ready() -> void:
 	mission_run.completed.connect(_on_mission_completed)
 	mission_run.retreated.connect(_on_mission_retreated)
 	mission_run.changed.connect(_update_mission_status)
-	expedition_ui.setup(mission_run, arthur)
+	expedition_ui.setup(mission_run, arthur, board_rotation)
 	expedition_ui.dispatch_requested.connect(start_mission)
+	expedition_ui.opportunity_requested.connect(start_opportunity)
+	board_rotation.opportunity_spawned.connect(_on_opportunity_spawned)
+	board_rotation.initialize()
 	expedition_ui.continue_requested.connect(_on_summary_continue)
 	board_button.pressed.connect(expedition_ui.show_board)
 	if debug_combat_mode:
@@ -93,6 +100,8 @@ func _spawn_slime() -> void:
 	if not debug_combat_mode and (mission_run.mission_state != MissionRun.State.IN_PROGRESS or not mission_run.encounter_active):
 		return
 	slime = SLIME_SCENE.instantiate()
+	if not debug_combat_mode:
+		slime.enemy_data = mission_run.mission.enemy_for_encounter(mission_run.current_encounter)
 	# Alternate sides so every respawn gives Arthur another short walk.
 	slime.position = slime_spawn.position if spawn_on_right else alternate_spawn.position
 	spawn_on_right = not spawn_on_right
@@ -101,13 +110,13 @@ func _spawn_slime() -> void:
 	slime.died.connect(_on_slime_died)
 	add_child(slime)
 	_update_slime_hp(slime.hp)
-	status_label.text = "Arthur approaches the Slime and attacks automatically in melee range."
+	status_label.text = "Arthur approaches %s and attacks in melee range." % slime.enemy_data.display_name
 	arthur.set_target(slime)
 
 
 func _on_arthur_attacked(target: Node2D, damage: int) -> void:
 	if is_instance_valid(slime) and target == slime and arthur.is_target_in_range():
-		status_label.text = "Arthur hits the Slime for %d damage!" % damage
+		status_label.text = "Arthur hits %s for %d damage!" % [slime.enemy_data.display_name, damage]
 		slime.take_damage(damage)
 
 
@@ -130,20 +139,22 @@ func _show_floating_text(message: String, effect_position: Vector2, text_color: 
 
 
 func _update_slime_hp(current_hp: int) -> void:
-	hp_label.text = "Slime HP: %d / 30" % current_hp
+	hp_label.text = "%s HP: %d / %d" % [slime.enemy_data.display_name, current_hp, slime.enemy_data.max_hp]
 
 
 func _on_slime_died() -> void:
 	if not is_instance_valid(slime):
 		return
 	var defeated_position: Vector2 = slime.position
+	last_defeated_position = defeated_position
+	var enemy: EnemyData = slime.enemy_data
 	# Resolve death immediately; the Slime's visual finishes independently.
 	slime = null
 	arthur.set_target(null)
 	if not debug_combat_mode:
-		arthur.consume_energy(mission_run.mission.energy_cost_per_encounter)
-	var gold_reward: int = _gold_reward(GOLD_PER_SLIME)
-	var xp_reward: int = _xp_reward(XP_PER_SLIME)
+		arthur.consume_energy(mission_run.mission.energy_for_encounter(mission_run.current_encounter))
+	var gold_reward: int = _gold_reward(enemy.gold_reward)
+	var xp_reward: int = _xp_reward(enemy.xp_reward)
 	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
 	gold_label.text = "Gold: %d" % gold
@@ -152,9 +163,9 @@ func _on_slime_died() -> void:
 	var drop: ItemData
 	if debug_combat_mode:
 		drop = loot_table.roll()
-	else:
-		drop = loot_table.roll(mission_run.mission.item_weight_multiplier, mission_run.mission.rare_weight_multiplier)
-	if OS.is_debug_build() and debug_next_drop != null:
+	elif enemy.loot_profile == "slime":
+		drop = loot_table.roll(mission_run.loot_modifier("item_weight_multiplier"), mission_run.loot_modifier("rare_weight_multiplier"), mission_run.loot_modifier("material_weight_multiplier"))
+	if OS.is_debug_build() and debug_next_drop != null and enemy.loot_profile == "slime":
 		drop = debug_next_drop
 		debug_next_drop = null
 		loot_debug_label.text = DEBUG_HINT
@@ -234,6 +245,22 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if not event.pressed or event.echo:
 		return
+	if event.keycode == KEY_6:
+		board_rotation.debug_toggle_fast_refresh()
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_0:
+		arthur.current_energy = 40
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode in [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5]:
+		if event.keycode == KEY_5:
+			var target: MissionInstance = mission_run.source_instance if mission_run.source_instance != null and mission_run.source_instance.active else board_rotation.slot
+			board_rotation.debug_expire_soon(target)
+		else:
+			board_rotation.debug_refresh(int(event.keycode - KEY_2))
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F8:
 		if is_instance_valid(slime):
 			slime.take_damage(slime.hp)
@@ -273,11 +300,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _update_gold() -> void:
 	gold_label.text = "Gold: %d" % gold
 
-func start_mission(data: MissionData) -> bool:
+func start_mission(data: MissionData, instance: MissionInstance = null) -> bool:
 	if debug_combat_mode or not mission_run.can_start():
 		return false
+	if data.special_type != "BASE" and (instance == null or not instance.claimed or not instance.active or instance.definition != data):
+		return false
 	arthur.guild_status = "ON_EXPEDITION"
-	if not mission_run.start(data):
+	if not mission_run.start(data, instance):
 		arthur.guild_status = "IDLE_AT_GUILD"
 		return false
 	expedition_ui.hide()
@@ -304,6 +333,9 @@ func _on_mission_completed() -> void:
 	arthur.set_target(null)
 	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
+	if mission_run.mission.completion_loot != null:
+		for item in mission_run.mission.completion_loot.roll(mission_run.completion_rng):
+			_spawn_ground_loot(item, last_defeated_position)
 	status_label.text = "MISSION COMPLETE! Returning to the Guild..."
 	_show_floating_text("MISSION COMPLETE", arthur.position + Vector2(0, -200), Color(0.5, 1, 0.7), 28, 1.2)
 	_return_to_guild()
@@ -364,3 +396,22 @@ func _update_mission_status() -> void:
 		mission_label.text = "Mission: %s | Encounter %d / %d | %s" % [
 			mission_run.mission.display_name, mission_run.current_encounter,
 			mission_run.total_encounters, MissionRun.State.keys()[mission_run.mission_state]]
+func start_opportunity(instance: MissionInstance) -> bool:
+	if debug_combat_mode or not mission_run.can_start() or not board_rotation.can_claim(instance):
+		return false
+	if not instance.definition.is_valid_definition():
+		return false
+	if not board_rotation.claim(instance):
+		return false
+	return start_mission(instance.definition, instance)
+
+func _on_opportunity_spawned(instance: MissionInstance) -> void:
+	if instance.special_type not in ["ELITE", "BOSS"]:
+		return
+	notification_label.text = "BOSS PORTAL OPENED" if instance.special_type == "BOSS" else "Elite mission appeared!"
+	if notification_tween:
+		notification_tween.kill()
+	notification_label.modulate.a = 1.0
+	notification_tween = create_tween()
+	notification_tween.tween_interval(4.0)
+	notification_tween.tween_property(notification_label, "modulate:a", 0.0, 0.5)

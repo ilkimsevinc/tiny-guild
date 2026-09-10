@@ -36,7 +36,7 @@ static func reason_text(reason: Reason) -> String:
 static func predict(mission: MissionData, current_energy: int, max_energy: int, config: ExpeditionStopConfig) -> String:
 	var remaining: int = current_energy
 	for encounter in range(1, mission.encounter_count):
-		remaining = maxi(remaining - mission.energy_cost_per_encounter, 0)
+		remaining = maxi(remaining - mission.energy_for_encounter(encounter), 0)
 		if remaining < max_energy * config.min_energy_percent:
 			return "RISK OF RETREAT"
 		if config.encounter_cap > 0 and encounter >= config.encounter_cap:

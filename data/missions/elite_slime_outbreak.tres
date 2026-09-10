@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = "elite_slime_outbreak"
+display_name = "Elite Slime Outbreak"
+description = "An unusual Slime outbreak offers a chance to recover rarer Slime treasures."
+special_type = "ELITE"
+requires_manual_attention = true
+difficulty = "HARD"
+recommended_level = 3
+encounter_count = 6
+energy_cost_per_encounter = 18
+base_gold_reward = 120
+base_xp_reward = 100
+loot_identity = "Increased Slime Ring and Slime Crown chance"
+rare_weight_multiplier = 3.0
+estimated_duration_text = "Medium"

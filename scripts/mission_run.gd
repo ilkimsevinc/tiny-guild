@@ -18,6 +18,8 @@ var completion_reward_eligible: bool:
 	get:
 		return result_status == Result.COMPLETED and defeated_encounters == total_encounters
 
+var source_instance: MissionInstance
+var completion_rng := RandomNumberGenerator.new()
 var mission: MissionData
 var mission_id: String = ""
 var mission_state: State = State.IDLE
@@ -37,12 +39,17 @@ var loot_items: Dictionary[String, ItemData] = {}
 func can_start() -> bool:
 	return mission_state == State.IDLE and not summary_pending
 
-func start(data: MissionData) -> bool:
+func start(data: MissionData, instance: MissionInstance = null) -> bool:
 	if not can_start() or data == null or data.encounter_count < 1:
 		return false
 	# Reject unsupported encounters instead of silently spawning the wrong enemy.
-	if data.enemy_pool != ["slime"] or data.loot_profile != "slime":
+	if not data.is_valid_definition():
 		return false
+	source_instance = instance
+	if source_instance != null:
+		completion_rng.seed = source_instance.seed
+	else:
+		completion_rng.randomize()
 	mission = data
 	mission_id = data.id
 	total_encounters = data.encounter_count
@@ -139,6 +146,8 @@ func begin_return() -> void:
 
 func finish_return() -> void:
 	if mission_state == State.RETURNING:
+		if source_instance != null:
+			source_instance.active = false
 		mission_state = State.IDLE
 		changed.emit()
 
@@ -154,3 +163,8 @@ func total_gold() -> int:
 
 func total_xp() -> int:
 	return accumulated_xp + completion_xp
+
+func loot_modifier(key: String) -> float:
+	if source_instance != null:
+		return source_instance.mission_modifiers.get(key, mission.get(key))
+	return mission.get(key)

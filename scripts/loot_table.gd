@@ -17,20 +17,22 @@ func _init() -> void:
 	rng.randomize()
 
 
-func roll(item_multiplier: float = 1.0, rare_multiplier: float = 1.0) -> ItemData:
+func roll(item_multiplier: float = 1.0, rare_multiplier: float = 1.0, material_multiplier: float = 1.0) -> ItemData:
 	# Preserve the original integer roll (and seeded tests) for normal loot.
-	if item_multiplier == 1.0 and rare_multiplier == 1.0:
+	if item_multiplier == 1.0 and rare_multiplier == 1.0 and material_multiplier == 1.0:
 		return item_for_roll(rng.randi_range(0, 99))
-	var weights: Array[float] = mission_weights(item_multiplier, rare_multiplier)
+	var weights: Array[float] = mission_weights(item_multiplier, rare_multiplier, material_multiplier)
 	var total: float = 0.0
 	for weight in weights:
 		total += weight
 	return item_for_weight(rng.randf() * total, weights)
 
-func mission_weights(item_multiplier: float, rare_multiplier: float) -> Array[float]:
+func mission_weights(item_multiplier: float, rare_multiplier: float, material_multiplier: float = 1.0) -> Array[float]:
 	var weights: Array[float] = []
 	for index in range(ITEMS.size()):
 		var weight: float = CHANCES[index] * maxf(item_multiplier, 0.0)
+		if ITEMS[index].item_type == ItemData.ItemType.MATERIAL:
+			weight *= maxf(material_multiplier, 0.0)
 		if ITEMS[index].is_rare_or_higher():
 			weight *= maxf(rare_multiplier, 0.0)
 		weights.append(weight)

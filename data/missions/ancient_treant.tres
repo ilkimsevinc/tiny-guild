@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="MissionData" load_steps=8 format=3]
+[ext_resource type="Script" path="res://scripts/mission_data.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/encounter_data.gd" id="2"]
+[ext_resource type="Resource" path="res://data/enemies/slime.tres" id="3"]
+[ext_resource type="Resource" path="res://data/enemies/ancient_treant.tres" id="4"]
+[ext_resource type="Resource" path="res://data/loot/ancient_treant_completion.tres" id="5"]
+[sub_resource type="Resource" id="SlimeEncounter"]
+script = ExtResource("2")
+enemy = ExtResource("3")
+energy_cost = 15
+[sub_resource type="Resource" id="BossEncounter"]
+script = ExtResource("2")
+enemy = ExtResource("4")
+energy_cost = 25
+[resource]
+script = ExtResource("1")
+id = "ancient_treant"
+display_name = "Ancient Treant"
+description = "Enter the forest portal, clear two Slimes, and confront an Ancient Treant."
+special_type = "BOSS"
+requires_manual_attention = true
+difficulty = "HARD"
+recommended_level = 4
+encounter_count = 3
+base_gold_reward = 250
+base_xp_reward = 180
+loot_identity = "Unique Ancient Treant completion loot"
+completion_loot = ExtResource("5")
+enemy_pool = Array[String](["slime", "ancient_treant"])
+encounters = Array[ExtResource("2")]([SubResource("SlimeEncounter"), SubResource("SlimeEncounter"), SubResource("BossEncounter")])
+estimated_duration_text = "Long"

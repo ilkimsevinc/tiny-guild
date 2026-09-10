@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="CompletionLootTable" load_steps=6 format=3]
+[ext_resource type="Script" path="res://scripts/completion_loot_table.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/item_data.gd" id="2"]
+[ext_resource type="Resource" path="res://data/items/ancient_bark.tres" id="3"]
+[ext_resource type="Resource" path="res://data/items/treant_heart.tres" id="4"]
+[ext_resource type="Resource" path="res://data/items/rootbound_relic.tres" id="5"]
+[resource]
+script = ExtResource("1")
+items = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5")])
+chances_percent = Array[int]([100, 15, 3])
