@@ -1,4 +1,9 @@
 # Milestone 8: manual missions
+> Milestone 9 adds default Energy retreats: Slime Nest and Treasure Trail now stop
+> after four encounters. Full-run totals below describe completion rewards; the
+> milestone 8 regression suite explicitly sets its Energy threshold to zero to
+> retain that coverage. See milestone9.md for current default gameplay.
+
 
 Normal launch starts Arthur at `IDLE_AT_GUILD`, without an enemy. The Expedition
 Board opens initially and remains available from its button while Arthur is idle.

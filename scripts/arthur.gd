@@ -14,6 +14,11 @@ const BASE_ATTACK_INTERVAL: float = 1.0
 
 # Guild assignment is separate from the movement/combat state.
 var guild_status: String = "IDLE_AT_GUILD"
+var max_energy: int = 100
+var current_energy: int = 100:
+	set(value):
+		current_energy = clampi(value, 0, max_energy)
+		stats_changed.emit()
 var state: State = State.IDLE
 var target: Node2D
 var loot_target: Node2D
@@ -129,3 +134,14 @@ func _restore_hp_after_level() -> void:
 
 func attack_interval() -> float:
 	return BASE_ATTACK_INTERVAL / (1.0 + skills.attack_speed_percent() / 100.0)
+
+func consume_energy(amount: int) -> void:
+	current_energy -= maxi(amount, 0)
+
+func restore_energy() -> void:
+	# Temporary Guild recovery, independent of HP and level-up healing.
+	current_energy = max_energy
+
+func expedition_snapshot() -> Dictionary:
+	return {"current_hp": progression.current_hp, "max_hp": total_max_hp(),
+		"current_energy": current_energy, "max_energy": max_energy}

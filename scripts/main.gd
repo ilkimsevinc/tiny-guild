@@ -22,6 +22,9 @@ var gold: int:
 var slime: Node2D
 var spawn_on_right: bool = true
 
+var return_in_progress: bool = false
+@onready var energy_label: Label = $UI/EnergyLabel
+@onready var energy_bar: ProgressBar = $UI/EnergyBar
 @onready var mission_run: MissionRun = $MissionRun
 @onready var expedition_ui = $UI/ExpeditionPanel
 @onready var board_button: Button = $UI/BoardButton
@@ -67,6 +70,7 @@ func _ready() -> void:
 	debug_combat_mode = debug_combat_mode and OS.is_debug_build()
 	mission_run.encounter_requested.connect(_spawn_slime)
 	mission_run.completed.connect(_on_mission_completed)
+	mission_run.retreated.connect(_on_mission_retreated)
 	mission_run.changed.connect(_update_mission_status)
 	expedition_ui.setup(mission_run, arthur)
 	expedition_ui.dispatch_requested.connect(start_mission)
@@ -136,6 +140,8 @@ func _on_slime_died() -> void:
 	# Resolve death immediately; the Slime's visual finishes independently.
 	slime = null
 	arthur.set_target(null)
+	if not debug_combat_mode:
+		arthur.consume_energy(mission_run.mission.energy_cost_per_encounter)
 	var gold_reward: int = _gold_reward(GOLD_PER_SLIME)
 	var xp_reward: int = _xp_reward(XP_PER_SLIME)
 	wallet.add_gold(gold_reward)
@@ -157,11 +163,14 @@ func _on_slime_died() -> void:
 	if debug_combat_mode:
 		respawn_timer.start()
 	else:
+		status_label.text = "Encounter cleared. Collecting loot before checking expedition limits..."
 		mission_run.record_defeat(gold_reward, xp_reward)
-		if mission_run.mission_state == MissionRun.State.IN_PROGRESS:
-			respawn_timer.start()
+		_resolve_mission_checkpoint()
 
 func _update_arthur_stats() -> void:
+	energy_label.text = "Energy: %d / %d | Return below %d%%" % [arthur.current_energy, arthur.max_energy, roundi(mission_run.stop_config.min_energy_percent * 100)]
+	energy_bar.max_value = arthur.max_energy
+	energy_bar.value = arthur.current_energy
 	var stats = arthur.progression
 	arthur_label.text = "Arthur - Knight | Level %d\nDamage: %d | HP: %d / %d" % [
 		stats.level, arthur.total_attack(), stats.current_hp, arthur.total_max_hp()
@@ -295,10 +304,33 @@ func _on_mission_completed() -> void:
 	arthur.set_target(null)
 	wallet.add_gold(gold_reward)
 	arthur.progression.add_xp(xp_reward)
-	status_label.text = "MISSION COMPLETE! Collecting loot before returning..."
+	status_label.text = "MISSION COMPLETE! Returning to the Guild..."
 	_show_floating_text("MISSION COMPLETE", arthur.position + Vector2(0, -200), Color(0.5, 1, 0.7), 28, 1.2)
+	_return_to_guild()
+
+func _on_mission_retreated() -> void:
+	respawn_timer.stop()
+	arthur.set_target(null)
+	status_label.text = "EXPEDITION STOPPED: %s. Arthur is returning." % StopConditionEvaluator.reason_text(mission_run.stop_reason)
+	_show_floating_text("EXPEDITION STOPPED\n" + StopConditionEvaluator.reason_text(mission_run.stop_reason),
+		arthur.position + Vector2(0, -200), Color(1, 0.7, 0.3), 26, 1.2)
+	_return_to_guild()
+
+func _resolve_mission_checkpoint() -> void:
+	# Pickup finishes before evaluating capacity or starting another encounter.
+	while ground_loot.get_child_count() > 0:
+		await get_tree().physics_frame
+	mission_run.resolve_checkpoint(arthur.expedition_snapshot())
+	if mission_run.mission_state == MissionRun.State.IN_PROGRESS:
+		status_label.text = "Arthur continues the expedition. Next encounter in 2 seconds..."
+		respawn_timer.start()
+
+func _return_to_guild() -> void:
+	if return_in_progress or mission_run.mission_state not in [MissionRun.State.COMPLETED, MissionRun.State.RETREATED]:
+		return
+	return_in_progress = true
 	await get_tree().create_timer(0.5).timeout
-	# Keep normal movement/pickup active until the last drop reaches inventory.
+	# Defensive guard: keep earned loot even if a new visual pickup is pending.
 	while ground_loot.get_child_count() > 0:
 		await get_tree().physics_frame
 	mission_run.begin_return()
@@ -309,6 +341,8 @@ func _on_mission_completed() -> void:
 	arthur.position = Vector2(240, 350)
 	arthur.visuals.scale.x = 1.0
 	arthur.guild_status = "IDLE_AT_GUILD"
+	arthur.restore_energy()
+	return_in_progress = false
 	mission_run.finish_return()
 	hp_label.text = "No active encounter"
 	status_label.text = "Arthur is back at the Guild. Review the mission summary."

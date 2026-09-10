@@ -104,6 +104,7 @@ func run_check() -> void:
 	for index in range(3):
 		run.record_defeat(10, 15)
 		run.record_defeat(10, 15)
+		run.resolve_checkpoint({}) # Explicit post-pickup checkpoint.
 		check(run.defeated_encounters == index + 1, "Duplicate defeat cannot advance or reward twice")
 		if index < 2:
 			check(run.mission_state == MissionRun.State.IN_PROGRESS, "I: No early completion")
@@ -141,6 +142,7 @@ func run_check() -> void:
 
 	main = MAIN.instantiate()
 	root.add_child(main)
+	main.mission_run.stop_config.min_energy_percent = 0.0 # Legacy full-run reward coverage.
 	await process_frame
 	check(main.arthur.guild_status == "IDLE_AT_GUILD" and main.arthur.state == main.arthur.State.IDLE,
 		"A: Arthur starts idle at Guild")

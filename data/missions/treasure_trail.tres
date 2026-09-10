@@ -14,3 +14,5 @@ loot_identity = "Higher equipment rarity chance"
 estimated_duration_text = "Long"
 rare_weight_multiplier = 1.5
 tags = Array[String](["forest", "treasure"])
+
+energy_cost_per_encounter = 20

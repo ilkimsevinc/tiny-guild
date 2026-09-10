@@ -10,6 +10,7 @@ extends Resource
 @export var difficulty: String = "EASY"
 @export var recommended_level: int = 1
 @export var encounter_count: int = 3
+@export var energy_cost_per_encounter: int = 0
 @export var base_gold_reward: int = 0
 @export var base_xp_reward: int = 0
 @export var loot_profile: String = "slime"

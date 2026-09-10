@@ -171,3 +171,18 @@ script = ExtResource("7")
 
 [node name="MissionRun" type="Node" parent="." unique_id=1531711113]
 script = ExtResource("9")
+
+[node name="EnergyLabel" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 118.0
+theme_override_font_sizes/font_size = 15
+text = "Energy: 100 / 100 | Return below 35%"
+
+[node name="EnergyBar" type="ProgressBar" parent="UI"]
+offset_left = 390.0
+offset_top = 122.0
+offset_right = 575.0
+offset_bottom = 133.0
+mouse_filter = 2
+value = 100.0
+show_percentage = false

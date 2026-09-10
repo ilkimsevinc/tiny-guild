@@ -14,3 +14,5 @@ loot_identity = "Higher Slime loot chance"
 estimated_duration_text = "Medium"
 item_weight_multiplier = 1.25
 tags = Array[String](["forest", "slime"])
+
+energy_cost_per_encounter = 18
