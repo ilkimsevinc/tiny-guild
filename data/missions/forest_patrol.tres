@@ -12,6 +12,7 @@ base_gold_reward = 30
 base_xp_reward = 30
 loot_identity = "Balanced / Common"
 estimated_duration_text = "Short"
+repeatable = true
 tags = Array[String](["forest", "slime"])
 
 energy_cost_per_encounter = 15

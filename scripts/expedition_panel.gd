@@ -14,6 +14,8 @@ var hero: Node2D
 var mission_buttons: Dictionary[String, Button] = {}
 var prediction: String = ""
 var board_rotation: MissionBoardRotation
+var mastery: GuildMasteryState
+var repeat_orders: RepeatOrderState
 var selected_instance: MissionInstance
 var opportunity_button: Button
 var rotation_status: Label
@@ -22,15 +24,23 @@ var rotation_status: Label
 @onready var entries: VBoxContainer = $Margin/Column/Board/Scroll/Entries
 @onready var details: RichTextLabel = $Margin/Column/Board/Selection/Details
 @onready var warning: Label = $Margin/Column/Board/Selection/Warning
+@onready var repeat_toggle: CheckButton = $Margin/Column/Board/Selection/RepeatMission
+@onready var repeat_reason: Label = $Margin/Column/Board/Selection/RepeatReason
 @onready var send_button: Button = $Margin/Column/Board/Selection/Send
 @onready var summary: RichTextLabel = $Margin/Column/Summary
 @onready var continue_button: Button = $Margin/Column/Continue
 
-func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBoardRotation = null) -> void:
+func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBoardRotation = null,
+		mastery_state: GuildMasteryState = null, automation_state: RepeatOrderState = null) -> void:
 	$Margin/Column/DebugControls.visible = OS.is_debug_build()
 	run = mission_run
 	hero = arthur
 	board_rotation = opportunity_board
+	mastery = mastery_state
+	repeat_orders = automation_state
+	if repeat_orders != null:
+		repeat_orders.changed.connect(refresh)
+	repeat_toggle.toggled.connect(_on_repeat_toggled)
 	if board_rotation != null:
 		opportunity_button = Button.new()
 		opportunity_button.custom_minimum_size = Vector2(350, 94)
@@ -67,15 +77,18 @@ func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBo
 
 func select_mission(data: MissionData) -> void:
 	selected_instance = null
+	if repeat_orders != null:
+		repeat_orders.select_mission(data)
 	selected = data
 	refresh()
 
 func refresh() -> void:
+	if run == null or hero == null or selected == null:
+		return
 	prediction = StopConditionEvaluator.predict(selected, hero.current_energy, hero.max_energy, run.stop_config)
 	details.text = "[b]%s[/b]\n%s | Recommended Level %d\nEncounters: %d | Duration: %s\n\nEnergy: %s\nArthur Energy: %d / %d\nReturn below: %d%%\n\nBase completion reward: %d Gold / %d XP\n(Additional to encounter rewards)\n\nLoot: %s\n\n%s" % [
 		selected.display_name, selected.difficulty, selected.recommended_level,
-		selected.encounter_count, selected.estimated_duration_text,
-		selected.energy_description(),
+		selected.encounter_count, selected.estimated_duration_text, selected.energy_description(),
 		hero.current_energy, hero.max_energy, roundi(run.stop_config.min_energy_percent * 100),
 		selected.base_gold_reward, selected.base_xp_reward, selected.loot_description(), selected.description]
 	if selected.completion_loot != null:
@@ -90,6 +103,12 @@ func refresh() -> void:
 		warning.text += " | BOSS THREAT"
 	if hero.progression.level < selected.recommended_level:
 		warning.text += "\nArthur is below the recommended level."
+	var unavailable: String = "Unlock Repeat Orders in Guild Mastery" if repeat_orders == null else repeat_orders.availability_reason(selected)
+	repeat_toggle.visible = repeat_orders != null and repeat_orders.repeat_unlocked
+	repeat_toggle.disabled = not unavailable.is_empty() or not run.can_start()
+	repeat_toggle.set_pressed_no_signal(repeat_orders != null and repeat_orders.repeat_enabled and repeat_orders.mission_id == selected.id)
+	repeat_reason.text = unavailable
+	repeat_reason.visible = not unavailable.is_empty()
 	send_button.disabled = not run.can_start() or (selected_instance != null and not board_rotation.can_claim(selected_instance))
 
 func show_board() -> void:
@@ -100,28 +119,36 @@ func show_board() -> void:
 	show()
 	refresh()
 
-func show_summary() -> void:
+func show_summary(automatic: bool = false) -> void:
 	title.text = "MISSION COMPLETE" if run.result_status == MissionRun.Result.COMPLETED else "EXPEDITION ENDED"
 	board.hide()
 	summary.show()
-	continue_button.show()
+	continue_button.visible = not automatic
 	var loot_lines: Array[String] = []
 	for item_id in run.collected_loot:
 		loot_lines.append("%s x%d" % [run.loot_items[item_id].display_name, run.collected_loot[item_id]])
 	var completion: String = "+%d Gold / +%d XP" % [run.completion_gold, run.completion_xp] if run.completion_reward_eligible else "NOT EARNED"
 	summary.text = "[b]%s[/b]\nResult: %s | Reason: %s\nEncounters: %d / %d | Ending Energy: %d\n\nCompletion Reward: %s\nCombat Rewards: +%d Gold / +%d XP\n\nLoot:\n%s\n\n[b]Total: Gold +%d / XP +%d[/b]" % [
-		run.mission.display_name, MissionRun.Result.keys()[run.result_status],
-		StopConditionEvaluator.reason_text(run.stop_reason), run.defeated_encounters, run.total_encounters,
-		run.ending_energy, completion, run.accumulated_gold, run.accumulated_xp,
-		"\n".join(loot_lines) if not loot_lines.is_empty() else "No loot collected",
+		run.mission.display_name, MissionRun.Result.keys()[run.result_status], StopConditionEvaluator.reason_text(run.stop_reason),
+		run.defeated_encounters, run.total_encounters, run.ending_energy, completion, run.accumulated_gold,
+		run.accumulated_xp, "\n".join(loot_lines) if not loot_lines.is_empty() else "No loot collected",
 		run.total_gold(), run.total_xp()]
+	if automatic:
+		summary.text += "\n\n[b]Repeat Orders:[/b] Preparing the next run automatically..."
 	show()
 
 func select_opportunity() -> void:
 	if board_rotation.slot == null:
 		return
 	selected_instance = board_rotation.slot
+	if repeat_orders != null:
+		repeat_orders.select_mission(selected_instance.definition)
 	selected = selected_instance.definition
+	refresh()
+
+func _on_repeat_toggled(enabled: bool) -> void:
+	if repeat_orders != null:
+		repeat_orders.set_enabled(selected, enabled)
 	refresh()
 
 func _on_send() -> void:

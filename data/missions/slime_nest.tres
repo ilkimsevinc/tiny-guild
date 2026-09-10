@@ -13,6 +13,7 @@ base_xp_reward = 60
 loot_identity = "Higher Slime loot chance"
 estimated_duration_text = "Medium"
 item_weight_multiplier = 1.25
+repeatable = true
 tags = Array[String](["forest", "slime"])
 
 energy_cost_per_encounter = 18

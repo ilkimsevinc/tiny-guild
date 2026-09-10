@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/expedition_panel.tscn" id="10"]
 
 [ext_resource type="Script" path="res://scripts/mission_board_rotation.gd" id="11"]
+[ext_resource type="Script" path="res://scripts/repeat_order_state.gd" id="12"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -143,6 +144,21 @@ theme_override_font_sizes/font_size = 17
 text = "Attack interval: 1.00 s"
 horizontal_alignment = 1
 
+[node name="RepeatStatus" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 550.0
+offset_right = 690.0
+offset_bottom = 580.0
+theme_override_colors/font_color = Color(0.5, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 17
+
+[node name="StopRepeat" type="Button" parent="UI"]
+offset_left = 700.0
+offset_top = 545.0
+offset_right = 890.0
+offset_bottom = 582.0
+text = "STOP REPEAT"
+
 [node name="MissionLabel" type="Label" parent="UI" unique_id=1524425449]
 offset_left = 40.0
 offset_top = 145.0
@@ -173,6 +189,9 @@ script = ExtResource("7")
 
 [node name="MissionRun" type="Node" parent="." unique_id=1531711113]
 script = ExtResource("9")
+
+[node name="RepeatOrderState" type="Node" parent="."]
+script = ExtResource("12")
 
 [node name="EnergyLabel" type="Label" parent="UI"]
 offset_left = 40.0

@@ -24,6 +24,7 @@ extends Resource
 @export var material_weight_multiplier: float = 1.0
 @export var special_type: String = "BASE"
 @export var requires_manual_attention: bool = false
+@export var repeatable: bool = false
 @export var repeated_enemy: EnemyData = preload("res://data/enemies/slime.tres")
 @export var encounters: Array[EncounterData] = []
 @export var completion_loot: CompletionLootTable

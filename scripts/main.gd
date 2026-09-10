@@ -7,7 +7,9 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F6 = next Rare | F7 = next Epic | F8 = defeat encounter | F9 = test items | F10 = +500 Gold | F11 = +1000 Gold | F12 = +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 repeat state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
+const REPEAT_SUMMARY_SECONDS: float = 1.75
+const REPEAT_PREPARATION_SECONDS: float = 2.0
 
 # Only automated legacy tests opt into this before adding Main to the tree.
 var debug_combat_mode: bool = false
@@ -26,6 +28,9 @@ var last_defeated_position: Vector2
 var notification_tween: Tween
 @onready var board_rotation: MissionBoardRotation = $MissionBoardRotation
 @onready var notification_label: Label = $UI/OpportunityNotification
+@onready var repeat_orders: RepeatOrderState = $RepeatOrderState
+@onready var repeat_status_label: Label = $UI/RepeatStatus
+@onready var stop_repeat_button: Button = $UI/StopRepeat
 var return_in_progress: bool = false
 @onready var energy_label: Label = $UI/EnergyLabel
 @onready var energy_bar: ProgressBar = $UI/EnergyBar
@@ -61,6 +66,9 @@ func _ready() -> void:
 	inventory_ui.setup(inventory, arthur.equipment)
 	skill_ui.setup(arthur.skills, wallet, arthur.name)
 	mastery_ui.setup(guild_mastery, wallet)
+	repeat_orders.setup(guild_mastery)
+	repeat_orders.changed.connect(_update_repeat_status)
+	stop_repeat_button.pressed.connect(_stop_repeat_after_current)
 	$UI/Sidebar.set_tab_title(1, "Class Skills")
 	$UI/Sidebar.set_tab_title(2, "Guild Mastery")
 	wallet.changed.connect(_update_gold)
@@ -76,7 +84,7 @@ func _ready() -> void:
 	mission_run.completed.connect(_on_mission_completed)
 	mission_run.retreated.connect(_on_mission_retreated)
 	mission_run.changed.connect(_update_mission_status)
-	expedition_ui.setup(mission_run, arthur, board_rotation)
+	expedition_ui.setup(mission_run, arthur, board_rotation, guild_mastery, repeat_orders)
 	expedition_ui.dispatch_requested.connect(start_mission)
 	expedition_ui.opportunity_requested.connect(start_opportunity)
 	board_rotation.opportunity_spawned.connect(_on_opportunity_spawned)
@@ -86,12 +94,15 @@ func _ready() -> void:
 	if debug_combat_mode:
 		expedition_ui.hide()
 		board_button.hide()
+		repeat_status_label.hide()
+		stop_repeat_button.hide()
 		mission_label.text = "DEBUG: endless combat regression mode"
 		_spawn_slime()
 	else:
 		hp_label.text = "No active encounter"
 		status_label.text = "Choose a mission from the Expedition Board."
 		_update_mission_status()
+	_update_repeat_status()
 
 
 func _spawn_slime() -> void:
@@ -261,6 +272,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			board_rotation.debug_refresh(int(event.keycode - KEY_2))
 		get_viewport().set_input_as_handled()
 		return
+	if event.keycode == KEY_F4:
+		print("REPEAT STATE: " + str(repeat_orders.snapshot()))
+		loot_debug_label.text = "DEBUG: " + str(repeat_orders.snapshot())
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_F5:
+		_stop_repeat_after_current()
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F8:
 		if is_instance_valid(slime):
 			slime.take_damage(slime.hp)
@@ -300,15 +320,20 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _update_gold() -> void:
 	gold_label.text = "Gold: %d" % gold
 
-func start_mission(data: MissionData, instance: MissionInstance = null) -> bool:
+func start_mission(data: MissionData, instance: MissionInstance = null, automatic_repeat: bool = false) -> bool:
 	if debug_combat_mode or not mission_run.can_start():
 		return false
 	if data.special_type != "BASE" and (instance == null or not instance.claimed or not instance.active or instance.definition != data):
 		return false
+	if automatic_repeat and (not repeat_orders.pending_restart or repeat_orders.mission_id != data.id):
+		return false
+	if not automatic_repeat:
+		repeat_orders.select_mission(data)
 	arthur.guild_status = "ON_EXPEDITION"
 	if not mission_run.start(data, instance):
 		arthur.guild_status = "IDLE_AT_GUILD"
 		return false
+	repeat_orders.record_dispatch(data, automatic_repeat)
 	expedition_ui.hide()
 	return true
 
@@ -329,6 +354,7 @@ func _on_mission_completed() -> void:
 	var xp_reward: int = _xp_reward(mission_run.mission.base_xp_reward)
 	if not mission_run.claim_completion_reward(gold_reward, xp_reward):
 		return
+	repeat_orders.record_success(mission_run.mission)
 	respawn_timer.stop()
 	arthur.set_target(null)
 	wallet.add_gold(gold_reward)
@@ -341,6 +367,8 @@ func _on_mission_completed() -> void:
 	_return_to_guild()
 
 func _on_mission_retreated() -> void:
+	if repeat_orders.repeat_enabled or repeat_orders.pending_restart:
+		repeat_orders.stop_for_result("RETREATED", "Arthur retreated due to %s." % StopConditionEvaluator.reason_text(mission_run.stop_reason))
 	respawn_timer.stop()
 	arthur.set_target(null)
 	status_label.text = "EXPEDITION STOPPED: %s. Arthur is returning." % StopConditionEvaluator.reason_text(mission_run.stop_reason)
@@ -377,8 +405,40 @@ func _return_to_guild() -> void:
 	return_in_progress = false
 	mission_run.finish_return()
 	hp_label.text = "No active encounter"
-	status_label.text = "Arthur is back at the Guild. Review the mission summary."
-	expedition_ui.show_summary()
+	var will_repeat: bool = repeat_orders.repeat_enabled and repeat_orders.pending_restart
+	status_label.text = "Arthur is back at the Guild. Preparing Repeat Orders." if will_repeat else "Arthur is back at the Guild. Review the mission summary."
+	expedition_ui.show_summary(will_repeat)
+	if will_repeat:
+		_continue_repeat_after_summary(mission_run.mission)
+
+func _continue_repeat_after_summary(mission: MissionData) -> void:
+	await get_tree().create_timer(REPEAT_SUMMARY_SECONDS).timeout
+	if not repeat_orders.repeat_enabled or not repeat_orders.pending_restart or repeat_orders.mission_id != mission.id:
+		expedition_ui.show_summary(false)
+		return
+	if not mission_run.acknowledge_summary():
+		repeat_orders.stop("Repeat Orders stopped: summary could not be acknowledged.")
+		return
+	expedition_ui.hide()
+	status_label.text = "Repeat Orders: depositing loot and preparing %s..." % mission.display_name
+	await get_tree().create_timer(REPEAT_PREPARATION_SECONDS).timeout
+	if not repeat_orders.repeat_enabled or not repeat_orders.pending_restart or repeat_orders.mission_id != mission.id:
+		status_label.text = "Repeat Orders stopped. Choose a mission manually."
+		expedition_ui.show_board()
+		return
+	if not start_mission(mission, null, true):
+		repeat_orders.stop("Repeat Orders stopped: mission restart was unavailable.")
+		status_label.text = repeat_orders.stop_reason
+		expedition_ui.show_board()
+
+func _stop_repeat_after_current() -> void:
+	if not repeat_orders.repeat_enabled and not repeat_orders.pending_restart:
+		return
+	var summary_visible: bool = mission_run.summary_pending and mission_run.mission_state == MissionRun.State.IDLE
+	repeat_orders.stop("Repeat Orders stopped by player after the current mission.")
+	status_label.text = repeat_orders.stop_reason
+	if summary_visible:
+		expedition_ui.show_summary(false)
 
 func _on_summary_continue() -> void:
 	if mission_run.acknowledge_summary():
@@ -396,6 +456,22 @@ func _update_mission_status() -> void:
 		mission_label.text = "Mission: %s | Encounter %d / %d | %s" % [
 			mission_run.mission.display_name, mission_run.current_encounter,
 			mission_run.total_encounters, MissionRun.State.keys()[mission_run.mission_state]]
+	_update_repeat_status()
+
+func _update_repeat_status() -> void:
+	if debug_combat_mode:
+		return
+	stop_repeat_button.visible = repeat_orders.repeat_enabled
+	if repeat_orders.repeat_enabled:
+		repeat_status_label.text = "Automation: REPEAT ORDERS | Mission: %s | Repeat Run: %d" % [
+			repeat_orders.mission_id.replace("_", " ").capitalize(), repeat_orders.repeat_run_count]
+		repeat_status_label.show()
+	elif not repeat_orders.stop_reason.is_empty():
+		repeat_status_label.text = repeat_orders.stop_reason
+		repeat_status_label.show()
+	else:
+		repeat_status_label.hide()
+
 func start_opportunity(instance: MissionInstance) -> bool:
 	if debug_combat_mode or not mission_run.can_start() or not board_rotation.can_claim(instance):
 		return false

@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = "repeat_orders"
 display_name = "Repeat Orders"
-description = "Future option to repeat the same expedition automatically."
+description = "Allows repeatable normal expeditions to automatically restart after successful completion."
 branch_id = "automation"
 tier = 1
 gold_cost = 250
@@ -14,5 +14,5 @@ guild_token_cost = 0
 prerequisite_ids = Array[String]([])
 effect_value = {}
 max_rank = 1
-implemented = false
+implemented = true
 unlock_tags = Array[String](["repeat_expedition"])
