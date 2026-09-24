@@ -75,6 +75,11 @@ func run_check() -> void:
 		and main.mastery_ui.node_buttons["repeat_orders"].text.contains("OWNED"),
 		"S: Mastery model and UI report Repeat Orders as owned")
 
+	# Milestone 12: automatic redispatch now requires Scheduled Rest; debug x10 keeps this fast.
+	main.wallet.add_gold(1200)
+	main.guild_mastery.purchase("scheduled_rest", main.wallet)
+	debug_key(KEY_7)
+
 	check(main.repeat_orders.is_mission_eligible(FOREST), "C: Forest Patrol is repeatable")
 	check(main.repeat_orders.is_mission_eligible(NEST), "D: Slime Nest is repeatable")
 	check(main.repeat_orders.is_mission_eligible(TRAIL), "E: Treasure Trail is repeatable")
@@ -103,7 +108,7 @@ func run_check() -> void:
 	check(main.repeat_orders.repeat_run_count == 2, "J: Repeat run counter increments")
 	check(main.gold == 60 and main.arthur.progression.level == 3 and main.arthur.progression.xp == 0, "K: First run rewards are granted exactly once")
 	check(main.inventory.quantity("slime_gel") == 3, "L: Repeated-run loot enters Inventory")
-	check(main.arthur.current_energy == main.arthur.max_energy, "M: Energy is fully restored before redispatch")
+	check(main.arthur.current_energy == main.arthur.max_energy, "M: Scheduled Rest restores Energy before redispatch")
 	check(not main.expedition_ui.continue_button.visible, "Summary auto-continues during Repeat Orders")
 
 	var active_run: int = main.repeat_orders.repeat_run_count

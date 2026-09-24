@@ -16,6 +16,7 @@ var prediction: String = ""
 var board_rotation: MissionBoardRotation
 var mastery: GuildMasteryState
 var repeat_orders: RepeatOrderState
+var recovery: EnergyRecovery
 var selected_instance: MissionInstance
 var opportunity_button: Button
 var rotation_status: Label
@@ -29,15 +30,24 @@ var rotation_status: Label
 @onready var send_button: Button = $Margin/Column/Board/Selection/Send
 @onready var summary: RichTextLabel = $Margin/Column/Summary
 @onready var continue_button: Button = $Margin/Column/Continue
+@onready var rest_status: Label = $Margin/Column/RestControls/RestStatus
+@onready var rest_button: Button = $Margin/Column/RestControls/Rest
+@onready var stop_rest_button: Button = $Margin/Column/RestControls/StopRest
 
 func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBoardRotation = null,
-		mastery_state: GuildMasteryState = null, automation_state: RepeatOrderState = null) -> void:
+		mastery_state: GuildMasteryState = null, automation_state: RepeatOrderState = null,
+		recovery_state: EnergyRecovery = null) -> void:
 	$Margin/Column/DebugControls.visible = OS.is_debug_build()
 	run = mission_run
 	hero = arthur
 	board_rotation = opportunity_board
 	mastery = mastery_state
 	repeat_orders = automation_state
+	recovery = recovery_state
+	if recovery != null:
+		recovery.changed.connect(refresh)
+		rest_button.pressed.connect(recovery.start)
+		stop_rest_button.pressed.connect(recovery.stop)
 	if repeat_orders != null:
 		repeat_orders.changed.connect(refresh)
 	repeat_toggle.toggled.connect(_on_repeat_toggled)
@@ -109,7 +119,17 @@ func refresh() -> void:
 	repeat_toggle.set_pressed_no_signal(repeat_orders != null and repeat_orders.repeat_enabled and repeat_orders.mission_id == selected.id)
 	repeat_reason.text = unavailable
 	repeat_reason.visible = not unavailable.is_empty()
-	send_button.disabled = not run.can_start() or (selected_instance != null and not board_rotation.can_claim(selected_instance))
+	if recovery != null:
+		var rate: String = str(snappedf(recovery.recovery_rate(), 0.1)).trim_suffix(".0")
+		rest_status.text = "Arthur | Status: %s | Energy: %d / %d | Recovery: +%s / sec" % [
+			hero.guild_status.replace("_", " ").capitalize(), hero.current_energy, hero.max_energy, rate]
+		var fully_rested: bool = hero.current_energy >= hero.max_energy
+		rest_button.disabled = not recovery.can_start() or not run.can_start()
+		rest_button.text = "Arthur is fully rested." if fully_rested else "REST"
+		stop_rest_button.disabled = not recovery.recovery_enabled
+		if recovery.recovery_enabled:
+			warning.text += "\nArthur is resting."
+	send_button.disabled = not run.can_start() or (recovery != null and recovery.recovery_enabled) or (selected_instance != null and not board_rotation.can_claim(selected_instance))
 
 func show_board() -> void:
 	title.text = "EXPEDITION BOARD"
@@ -134,7 +154,12 @@ func show_summary(automatic: bool = false) -> void:
 		run.accumulated_xp, "\n".join(loot_lines) if not loot_lines.is_empty() else "No loot collected",
 		run.total_gold(), run.total_xp()]
 	if automatic:
-		summary.text += "\n\n[b]Repeat Orders:[/b] Preparing the next run automatically..."
+		if recovery == null or recovery.is_ready():
+			summary.text += "\n\n[b]Repeat Orders:[/b] Preparing the next run automatically..."
+		elif repeat_orders != null and repeat_orders.scheduled_rest_owned:
+			summary.text += "\n\n[b]Scheduled Rest:[/b] Arthur will rest, then resume automatically."
+		else:
+			summary.text += "\n\n[b]Repeat Orders paused:[/b] Arthur needs to recover."
 	show()
 
 func select_opportunity() -> void:
@@ -188,4 +213,4 @@ func _update_countdown() -> void:
 	else:
 		var seconds: int = maxi(ceili(board_rotation.next_refresh_at - board_rotation.now()), 0)
 		rotation_status.text = "Next refresh: %02d:%02d" % [floori(seconds / 60.0), seconds % 60]
-	send_button.disabled = not run.can_start() or (selected_instance != null and not board_rotation.can_claim(selected_instance))
+	refresh()

@@ -4,6 +4,7 @@ extends Node
 signal changed
 
 const MASTERY_ID: String = "repeat_orders"
+const SCHEDULED_REST_ID: String = "scheduled_rest"
 
 var mastery: GuildMasteryState
 var repeat_enabled: bool = false
@@ -11,10 +12,16 @@ var mission_id: String = ""
 var repeat_run_count: int = 0
 var stop_reason: String = ""
 var pending_restart: bool = false
+var paused_for_recovery: bool = false
 
 var repeat_unlocked: bool:
 	get:
 		return mastery != null and mastery.owns(MASTERY_ID)
+
+# Derived from Guild Mastery; never stored as a separate unlock flag.
+var scheduled_rest_owned: bool:
+	get:
+		return repeat_unlocked and mastery.owns(SCHEDULED_REST_ID)
 
 func setup(mastery_state: GuildMasteryState) -> void:
 	mastery = mastery_state
@@ -47,6 +54,7 @@ func set_enabled(mission: MissionData, enabled: bool) -> bool:
 		repeat_run_count = 0
 		stop_reason = ""
 		pending_restart = false
+		paused_for_recovery = false
 	else:
 		stop("Stopped by player")
 		return true
@@ -59,9 +67,27 @@ func record_dispatch(mission: MissionData, automatic: bool = false) -> bool:
 	if automatic and not pending_restart:
 		return false
 	pending_restart = false
+	# A manual dispatch while paused resumes the session at current Energy.
+	paused_for_recovery = false
+	if stop_reason.begins_with("Repeat Orders paused"):
+		stop_reason = ""
 	repeat_run_count += 1
 	changed.emit()
 	return true
+
+func pause_for_recovery() -> void:
+	if not repeat_enabled or not pending_restart:
+		return
+	paused_for_recovery = true
+	stop_reason = "Repeat Orders paused: Arthur needs to recover."
+	changed.emit()
+
+func resume_from_recovery() -> void:
+	if not repeat_enabled or not pending_restart:
+		return
+	paused_for_recovery = false
+	stop_reason = ""
+	changed.emit()
 
 func record_success(mission: MissionData) -> bool:
 	if mission == null or not repeat_enabled or mission.id != mission_id or not is_mission_eligible(mission):
@@ -73,6 +99,7 @@ func record_success(mission: MissionData) -> bool:
 func stop(reason: String) -> void:
 	repeat_enabled = false
 	pending_restart = false
+	paused_for_recovery = false
 	mission_id = ""
 	repeat_run_count = 0
 	stop_reason = reason
@@ -84,6 +111,7 @@ func stop_for_result(result_name: String, reason: String = "") -> void:
 
 func reset() -> void:
 	repeat_enabled = false
+	paused_for_recovery = false
 	mission_id = ""
 	repeat_run_count = 0
 	stop_reason = ""
@@ -93,7 +121,8 @@ func reset() -> void:
 func snapshot() -> Dictionary:
 	return {"repeat_unlocked": repeat_unlocked, "repeat_enabled": repeat_enabled,
 		"mission_id": mission_id, "repeat_run_count": repeat_run_count,
-		"stop_reason": stop_reason, "pending_restart": pending_restart}
+		"stop_reason": stop_reason, "pending_restart": pending_restart,
+		"paused_for_recovery": paused_for_recovery, "scheduled_rest_owned": scheduled_rest_owned}
 
 func _on_mastery_changed() -> void:
 	if not repeat_unlocked and repeat_enabled:

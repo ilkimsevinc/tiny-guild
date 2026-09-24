@@ -144,7 +144,8 @@ func run_check() -> void:
 	root.add_child(main)
 	main.mission_run.stop_config.min_energy_percent = 0.0 # Legacy full-run reward coverage.
 	await process_frame
-	check(main.arthur.guild_status == "IDLE_AT_GUILD" and main.arthur.state == main.arthur.State.IDLE,
+	# Milestone 12: full Energy at the Guild is reported as READY.
+	check(main.arthur.guild_status == "READY" and main.arthur.state == main.arthur.State.IDLE,
 		"A: Arthur starts idle at Guild")
 	await create_timer(2.1).timeout
 	main._spawn_slime()

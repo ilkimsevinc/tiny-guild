@@ -13,6 +13,7 @@
 
 [ext_resource type="Script" path="res://scripts/mission_board_rotation.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/repeat_order_state.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/energy_recovery.gd" id="13"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -192,6 +193,9 @@ script = ExtResource("9")
 
 [node name="RepeatOrderState" type="Node" parent="."]
 script = ExtResource("12")
+
+[node name="EnergyRecovery" type="Node" parent="."]
+script = ExtResource("13")
 
 [node name="EnergyLabel" type="Label" parent="UI"]
 offset_left = 40.0

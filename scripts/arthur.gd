@@ -139,7 +139,7 @@ func consume_energy(amount: int) -> void:
 	current_energy -= maxi(amount, 0)
 
 func restore_energy() -> void:
-	# Temporary Guild recovery, independent of HP and level-up healing.
+	# Debug/test shortcut only; normal play recovers through EnergyRecovery.
 	current_energy = max_energy
 
 func expedition_snapshot() -> Dictionary:

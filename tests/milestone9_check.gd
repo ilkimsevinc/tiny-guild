@@ -162,8 +162,12 @@ func run_check() -> void:
 	check(main.mission_run.result_status == MissionRun.Result.COMPLETED and main.gold == 60
 		and main.mission_run.total_xp() == 75, "N: Forest retains full completion rewards")
 	main._on_mission_completed()
-	check(main.gold == 60 and main.arthur.current_energy == 100, "L/N: Full Guild recovery; completion reward cannot repeat")
+	# Milestone 12 replaced instant recovery with resting at the Guild.
+	check(main.gold == 60 and main.arthur.current_energy == 55, "L/N: Energy kept on return; completion reward cannot repeat")
 	await press(main.expedition_ui.continue_button)
+	main.energy_recovery.start()
+	main.energy_recovery.recover(9.0)
+	check(main.arthur.current_energy == 100 and main.arthur.guild_status == "READY", "L: Guild rest recovers to 100")
 
 	await select_mission(1)
 	check(main.expedition_ui.prediction == "RISK OF RETREAT" and not main.expedition_ui.send_button.disabled,
@@ -191,12 +195,14 @@ func run_check() -> void:
 		and not main.mission_run.completion_reward_eligible, "H/I: Keep four combat rewards; no completion reward")
 	check(main.inventory.quantity(GEL.id) == 7 and main.mission_run.collected_loot[GEL.id] == 4,
 		"J: All retreat loot remains in Inventory including final pickup")
-	check(main.arthur.guild_status == "IDLE_AT_GUILD" and main.arthur.current_energy == 100
-		and main.mission_run.result_status == MissionRun.Result.RETREATED, "K/L: Guild recovers Energy without erasing outcome")
+	check(main.arthur.guild_status == "IDLE_AT_GUILD" and main.arthur.current_energy == 28
+		and main.mission_run.result_status == MissionRun.Result.RETREATED, "K/L: Returns with ending Energy without erasing outcome")
 	check(main.expedition_ui.title.text == "EXPEDITION ENDED" and main.expedition_ui.summary.text.contains("NOT EARNED")
 		and main.expedition_ui.summary.text.contains("Low Energy"), "Retreat summary clearly distinguishes result and rewards")
 	await capture("m9-retreat-summary")
 	await press(main.expedition_ui.continue_button)
+	main.energy_recovery.start()
+	main.energy_recovery.recover(15.0)
 
 	# Verify retreat rewards with equipment and Guild modifiers combined.
 	main.wallet.add_gold(1000)
@@ -223,8 +229,8 @@ func run_check() -> void:
 		"Duplicate callbacks cannot award completion or consume more Energy")
 	await press(main.expedition_ui.continue_button)
 	await create_timer(2.1).timeout
-	check(main.mission_run.can_start() and not is_instance_valid(main.slime) and main.arthur.current_energy == 100,
-		"No automatic repeat or dispatch after recovery")
+	check(main.mission_run.can_start() and not is_instance_valid(main.slime) and main.arthur.current_energy == 20,
+		"No automatic repeat, dispatch, or recovery after return")
 	check(not main.guild_mastery.owns("repeat_orders") and main.wallet.guild_tokens == 0,
 		"No future Mastery activation or Token rewards")
 	print("Milestone 9 check finished: %d failures" % failures)

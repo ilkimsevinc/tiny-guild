@@ -7,7 +7,7 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 repeat state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 7 10x recovery | 8 Full Energy | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
 const REPEAT_SUMMARY_SECONDS: float = 1.75
 const REPEAT_PREPARATION_SECONDS: float = 2.0
 
@@ -29,9 +29,11 @@ var notification_tween: Tween
 @onready var board_rotation: MissionBoardRotation = $MissionBoardRotation
 @onready var notification_label: Label = $UI/OpportunityNotification
 @onready var repeat_orders: RepeatOrderState = $RepeatOrderState
+@onready var energy_recovery: EnergyRecovery = $EnergyRecovery
 @onready var repeat_status_label: Label = $UI/RepeatStatus
 @onready var stop_repeat_button: Button = $UI/StopRepeat
 var return_in_progress: bool = false
+var repeat_preparing: bool = false
 @onready var energy_label: Label = $UI/EnergyLabel
 @onready var energy_bar: ProgressBar = $UI/EnergyBar
 @onready var mission_run: MissionRun = $MissionRun
@@ -67,6 +69,11 @@ func _ready() -> void:
 	skill_ui.setup(arthur.skills, wallet, arthur.name)
 	mastery_ui.setup(guild_mastery, wallet)
 	repeat_orders.setup(guild_mastery)
+	energy_recovery.setup(arthur)
+	energy_recovery.ready_reached.connect(_on_recovery_ready)
+	energy_recovery.changed.connect(_update_arthur_stats)
+	energy_recovery.changed.connect(_update_repeat_status)
+	arthur.stats_changed.connect(energy_recovery.sync_guild_status)
 	repeat_orders.changed.connect(_update_repeat_status)
 	stop_repeat_button.pressed.connect(_stop_repeat_after_current)
 	$UI/Sidebar.set_tab_title(1, "Class Skills")
@@ -84,7 +91,7 @@ func _ready() -> void:
 	mission_run.completed.connect(_on_mission_completed)
 	mission_run.retreated.connect(_on_mission_retreated)
 	mission_run.changed.connect(_update_mission_status)
-	expedition_ui.setup(mission_run, arthur, board_rotation, guild_mastery, repeat_orders)
+	expedition_ui.setup(mission_run, arthur, board_rotation, guild_mastery, repeat_orders, energy_recovery)
 	expedition_ui.dispatch_requested.connect(start_mission)
 	expedition_ui.opportunity_requested.connect(start_opportunity)
 	board_rotation.opportunity_spawned.connect(_on_opportunity_spawned)
@@ -191,8 +198,14 @@ func _on_slime_died() -> void:
 
 func _update_arthur_stats() -> void:
 	energy_label.text = "Energy: %d / %d | Return below %d%%" % [arthur.current_energy, arthur.max_energy, roundi(mission_run.stop_config.min_energy_percent * 100)]
+	if energy_recovery.recovery_enabled:
+		energy_label.text += " | Resting +%s / sec" % str(snappedf(energy_recovery.recovery_rate(), 0.1)).trim_suffix(".0")
 	energy_bar.max_value = arthur.max_energy
 	energy_bar.value = arthur.current_energy
+	# Subtle recovery cue instead of per-tick floating text.
+	energy_bar.modulate = Color(0.6, 1.0, 0.7) if energy_recovery.recovery_enabled else Color.WHITE
+	if not debug_combat_mode:
+		state_label.text = "Arthur: " + arthur.guild_status.replace("_", " ").capitalize()
 	var stats = arthur.progression
 	arthur_label.text = "Arthur - Knight | Level %d\nDamage: %d | HP: %d / %d" % [
 		stats.level, arthur.total_attack(), stats.current_hp, arthur.total_max_hp()
@@ -260,6 +273,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		board_rotation.debug_toggle_fast_refresh()
 		get_viewport().set_input_as_handled()
 		return
+	if event.keycode == KEY_7:
+		var mult: float = 1.0 if is_equal_approx(energy_recovery.debug_multiplier, 10.0) else 10.0
+		energy_recovery.debug_set_multiplier(mult)
+		loot_debug_label.text = "DEBUG: Recovery speed x%d. " % roundi(mult) + DEBUG_HINT
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_8:
+		arthur.restore_energy()
+		loot_debug_label.text = "DEBUG: Full Energy restored. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_0:
 		arthur.current_energy = 40
 		get_viewport().set_input_as_handled()
@@ -273,8 +297,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F4:
-		print("REPEAT STATE: " + str(repeat_orders.snapshot()))
-		loot_debug_label.text = "DEBUG: " + str(repeat_orders.snapshot())
+		print("REPEAT: %s | RECOVERY: %s" % [str(repeat_orders.snapshot()), str(energy_recovery.snapshot())])
+		loot_debug_label.text = "DEBUG REPEAT: %s\nDEBUG RECOVERY: %s" % [str(repeat_orders.snapshot()), str(energy_recovery.snapshot())]
 		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F5:
@@ -321,7 +345,7 @@ func _update_gold() -> void:
 	gold_label.text = "Gold: %d" % gold
 
 func start_mission(data: MissionData, instance: MissionInstance = null, automatic_repeat: bool = false) -> bool:
-	if debug_combat_mode or not mission_run.can_start():
+	if debug_combat_mode or not mission_run.can_start() or energy_recovery.recovery_enabled:
 		return false
 	if data.special_type != "BASE" and (instance == null or not instance.claimed or not instance.active or instance.definition != data):
 		return false
@@ -329,10 +353,12 @@ func start_mission(data: MissionData, instance: MissionInstance = null, automati
 		return false
 	if not automatic_repeat:
 		repeat_orders.select_mission(data)
+	# Partial Energy is allowed for dispatch; only an active rest blocks it.
 	arthur.guild_status = "ON_EXPEDITION"
 	if not mission_run.start(data, instance):
-		arthur.guild_status = "IDLE_AT_GUILD"
+		energy_recovery.arrive_at_guild()
 		return false
+	energy_recovery.apply_dispatch_bonus()
 	repeat_orders.record_dispatch(data, automatic_repeat)
 	expedition_ui.hide()
 	return true
@@ -400,8 +426,8 @@ func _return_to_guild() -> void:
 	await get_tree().create_timer(1.0).timeout
 	arthur.position = Vector2(240, 350)
 	arthur.visuals.scale.x = 1.0
-	arthur.guild_status = "IDLE_AT_GUILD"
-	arthur.restore_energy()
+	# Arthur keeps his ending Energy; recovery happens through rest.
+	energy_recovery.arrive_at_guild()
 	return_in_progress = false
 	mission_run.finish_return()
 	hp_label.text = "No active encounter"
@@ -419,14 +445,42 @@ func _continue_repeat_after_summary(mission: MissionData) -> void:
 	if not mission_run.acknowledge_summary():
 		repeat_orders.stop("Repeat Orders stopped: summary could not be acknowledged.")
 		return
+	if energy_recovery.is_ready():
+		_prepare_repeat(mission)
+		return
+	# Only COMPLETED runs reach here; retreats already stopped the session.
+	repeat_orders.pause_for_recovery()
+	if repeat_orders.scheduled_rest_owned and energy_recovery.start():
+		status_label.text = "Scheduled Rest: Arthur is resting before Repeat Orders resume."
+	else:
+		status_label.text = repeat_orders.stop_reason + " Press REST, then dispatch manually."
+	expedition_ui.show_board()
+
+func _on_recovery_ready() -> void:
+	if not (repeat_orders.repeat_enabled and repeat_orders.pending_restart and repeat_orders.paused_for_recovery):
+		status_label.text = "Arthur is READY."
+		return
+	if repeat_orders.scheduled_rest_owned and mission_run.mission != null and mission_run.mission.id == repeat_orders.mission_id:
+		_prepare_repeat(mission_run.mission)
+	else:
+		status_label.text = "Arthur is READY. Repeat Orders remains paused until you dispatch manually."
+
+func _prepare_repeat(mission: MissionData) -> void:
+	if repeat_preparing:
+		return
+	repeat_preparing = true
+	repeat_orders.resume_from_recovery()
 	expedition_ui.hide()
-	status_label.text = "Repeat Orders: depositing loot and preparing %s..." % mission.display_name
+	status_label.text = "Arthur is READY. Preparing %s..." % mission.display_name
 	await get_tree().create_timer(REPEAT_PREPARATION_SECONDS).timeout
+	repeat_preparing = false
+	if not mission_run.can_start():
+		return # The player already dispatched manually.
 	if not repeat_orders.repeat_enabled or not repeat_orders.pending_restart or repeat_orders.mission_id != mission.id:
 		status_label.text = "Repeat Orders stopped. Choose a mission manually."
 		expedition_ui.show_board()
 		return
-	if not start_mission(mission, null, true):
+	if not energy_recovery.is_ready() or not start_mission(mission, null, true):
 		repeat_orders.stop("Repeat Orders stopped: mission restart was unavailable.")
 		status_label.text = repeat_orders.stop_reason
 		expedition_ui.show_board()
@@ -465,6 +519,10 @@ func _update_repeat_status() -> void:
 	if repeat_orders.repeat_enabled:
 		repeat_status_label.text = "Automation: REPEAT ORDERS | Mission: %s | Repeat Run: %d" % [
 			repeat_orders.mission_id.replace("_", " ").capitalize(), repeat_orders.repeat_run_count]
+		if repeat_orders.paused_for_recovery:
+			var auto_resume: bool = repeat_orders.scheduled_rest_owned and energy_recovery.recovery_enabled
+			repeat_status_label.text += "\n" + ("Scheduled Rest: recovering, resumes when READY" if auto_resume
+				else "Repeat Orders paused: Arthur needs to recover.")
 		repeat_status_label.show()
 	elif not repeat_orders.stop_reason.is_empty():
 		repeat_status_label.text = repeat_orders.stop_reason

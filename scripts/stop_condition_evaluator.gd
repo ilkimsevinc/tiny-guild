@@ -32,7 +32,8 @@ static func reason_text(reason: Reason) -> String:
 		Reason.NO_CONSUMABLES: return "No Consumables"
 		_: return "None"
 
-# Energy/cap estimate only. The final encounter wins over return thresholds.
+# Energy/cap estimate from the hero's actual starting Energy (not an assumed 100).
+# Mirrors resolve_checkpoint: the final encounter wins over return thresholds.
 static func predict(mission: MissionData, current_energy: int, max_energy: int, config: ExpeditionStopConfig) -> String:
 	var remaining: int = current_energy
 	for encounter in range(1, mission.encounter_count):
