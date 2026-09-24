@@ -7,9 +7,10 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 7 10x recovery | 8 Full Energy | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Energy=40 | 7 10x recovery | 8 Full Energy | 9 pause queue after current | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
 const REPEAT_SUMMARY_SECONDS: float = 1.75
 const REPEAT_PREPARATION_SECONDS: float = 2.0
+const QUEUE_RESULT_SECONDS: float = 1.5
 
 # Only automated legacy tests opt into this before adding Main to the tree.
 var debug_combat_mode: bool = false
@@ -32,8 +33,12 @@ var notification_tween: Tween
 @onready var energy_recovery: EnergyRecovery = $EnergyRecovery
 @onready var repeat_status_label: Label = $UI/RepeatStatus
 @onready var stop_repeat_button: Button = $UI/StopRepeat
+@onready var mission_queue: MissionQueueState = $MissionQueueState
+@onready var queue_status_label: Label = $UI/QueueStatus
+@onready var stop_queue_button: Button = $UI/StopQueue
 var return_in_progress: bool = false
 var repeat_preparing: bool = false
+var queue_preparing: bool = false
 @onready var energy_label: Label = $UI/EnergyLabel
 @onready var energy_bar: ProgressBar = $UI/EnergyBar
 @onready var mission_run: MissionRun = $MissionRun
@@ -76,6 +81,10 @@ func _ready() -> void:
 	arthur.stats_changed.connect(energy_recovery.sync_guild_status)
 	repeat_orders.changed.connect(_update_repeat_status)
 	stop_repeat_button.pressed.connect(_stop_repeat_after_current)
+	mission_queue.setup(guild_mastery)
+	mission_queue.changed.connect(_update_queue_status)
+	energy_recovery.changed.connect(_update_queue_status)
+	stop_queue_button.pressed.connect(stop_queue)
 	$UI/Sidebar.set_tab_title(1, "Class Skills")
 	$UI/Sidebar.set_tab_title(2, "Guild Mastery")
 	wallet.changed.connect(_update_gold)
@@ -91,8 +100,11 @@ func _ready() -> void:
 	mission_run.completed.connect(_on_mission_completed)
 	mission_run.retreated.connect(_on_mission_retreated)
 	mission_run.changed.connect(_update_mission_status)
-	expedition_ui.setup(mission_run, arthur, board_rotation, guild_mastery, repeat_orders, energy_recovery)
+	expedition_ui.setup(mission_run, arthur, board_rotation, guild_mastery, repeat_orders, energy_recovery, mission_queue)
 	expedition_ui.dispatch_requested.connect(start_mission)
+	expedition_ui.queue_start_requested.connect(start_queue)
+	expedition_ui.queue_resume_requested.connect(resume_queue)
+	expedition_ui.queue_stop_requested.connect(stop_queue)
 	expedition_ui.opportunity_requested.connect(start_opportunity)
 	board_rotation.opportunity_spawned.connect(_on_opportunity_spawned)
 	board_rotation.initialize()
@@ -103,6 +115,8 @@ func _ready() -> void:
 		board_button.hide()
 		repeat_status_label.hide()
 		stop_repeat_button.hide()
+		queue_status_label.hide()
+		stop_queue_button.hide()
 		mission_label.text = "DEBUG: endless combat regression mode"
 		_spawn_slime()
 	else:
@@ -110,6 +124,7 @@ func _ready() -> void:
 		status_label.text = "Choose a mission from the Expedition Board."
 		_update_mission_status()
 	_update_repeat_status()
+	_update_queue_status()
 
 
 func _spawn_slime() -> void:
@@ -288,6 +303,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		arthur.current_energy = 40
 		get_viewport().set_input_as_handled()
 		return
+	if event.keycode == KEY_9:
+		# Future Boss Portal hook: pause Expedition Orders after the current mission.
+		mission_queue.request_pause_after_current()
+		loot_debug_label.text = "DEBUG: Expedition Orders pause after current mission. " + DEBUG_HINT
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode in [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5]:
 		if event.keycode == KEY_5:
 			var target: MissionInstance = mission_run.source_instance if mission_run.source_instance != null and mission_run.source_instance.active else board_rotation.slot
@@ -298,7 +319,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 	if event.keycode == KEY_F4:
 		print("REPEAT: %s | RECOVERY: %s" % [str(repeat_orders.snapshot()), str(energy_recovery.snapshot())])
-		loot_debug_label.text = "DEBUG REPEAT: %s\nDEBUG RECOVERY: %s" % [str(repeat_orders.snapshot()), str(energy_recovery.snapshot())]
+		print("QUEUE: %s" % str(mission_queue.snapshot()))
+		loot_debug_label.text = "DEBUG REPEAT: %s\nDEBUG RECOVERY: %s\nDEBUG QUEUE: %s" % [
+			str(repeat_orders.snapshot()), str(energy_recovery.snapshot()), str(mission_queue.snapshot())]
 		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F5:
@@ -344,14 +367,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _update_gold() -> void:
 	gold_label.text = "Gold: %d" % gold
 
-func start_mission(data: MissionData, instance: MissionInstance = null, automatic_repeat: bool = false) -> bool:
+func start_mission(data: MissionData, instance: MissionInstance = null, automatic_repeat: bool = false, from_queue: bool = false) -> bool:
 	if debug_combat_mode or not mission_run.can_start() or energy_recovery.recovery_enabled:
 		return false
 	if data.special_type != "BASE" and (instance == null or not instance.claimed or not instance.active or instance.definition != data):
 		return false
+	# A running queue owns the next dispatch; a paused one allows one-off missions.
+	if from_queue != mission_queue.running or (from_queue and (automatic_repeat or data != mission_queue.next_mission())):
+		return false
 	if automatic_repeat and (not repeat_orders.pending_restart or repeat_orders.mission_id != data.id):
 		return false
-	if not automatic_repeat:
+	if not automatic_repeat and not from_queue:
 		repeat_orders.select_mission(data)
 	# Partial Energy is allowed for dispatch; only an active rest blocks it.
 	arthur.guild_status = "ON_EXPEDITION"
@@ -359,7 +385,10 @@ func start_mission(data: MissionData, instance: MissionInstance = null, automati
 		energy_recovery.arrive_at_guild()
 		return false
 	energy_recovery.apply_dispatch_bonus()
-	repeat_orders.record_dispatch(data, automatic_repeat)
+	if from_queue:
+		mission_queue.record_dispatch(data)
+	else:
+		repeat_orders.record_dispatch(data, automatic_repeat)
 	expedition_ui.hide()
 	return true
 
@@ -380,7 +409,8 @@ func _on_mission_completed() -> void:
 	var xp_reward: int = _xp_reward(mission_run.mission.base_xp_reward)
 	if not mission_run.claim_completion_reward(gold_reward, xp_reward):
 		return
-	repeat_orders.record_success(mission_run.mission)
+	if not mission_queue.awaiting_result:
+		repeat_orders.record_success(mission_run.mission)
 	respawn_timer.stop()
 	arthur.set_target(null)
 	wallet.add_gold(gold_reward)
@@ -431,6 +461,10 @@ func _return_to_guild() -> void:
 	return_in_progress = false
 	mission_run.finish_return()
 	hp_label.text = "No active encounter"
+	# Loot pickup has finished, so the queue aggregates the complete run.
+	if mission_queue.awaiting_result:
+		_handle_queue_return()
+		return
 	var will_repeat: bool = repeat_orders.repeat_enabled and repeat_orders.pending_restart
 	status_label.text = "Arthur is back at the Guild. Preparing Repeat Orders." if will_repeat else "Arthur is back at the Guild. Review the mission summary."
 	expedition_ui.show_summary(will_repeat)
@@ -456,7 +490,127 @@ func _continue_repeat_after_summary(mission: MissionData) -> void:
 		status_label.text = repeat_orders.stop_reason + " Press REST, then dispatch manually."
 	expedition_ui.show_board()
 
+func _handle_queue_return() -> void:
+	var finished_name: String = mission_run.mission.display_name
+	match mission_queue.record_result(mission_run):
+		MissionQueueState.Outcome.NEXT:
+			status_label.text = "Expedition Orders: %s complete. Next: %s" % [finished_name, mission_queue.next_mission().display_name]
+			expedition_ui.show_summary(true)
+			await get_tree().create_timer(QUEUE_RESULT_SECONDS).timeout
+			if not mission_queue.running:
+				expedition_ui.show_summary(false) # Stopped during the brief result.
+				return
+			if not mission_run.acknowledge_summary():
+				return
+			_queue_rest_or_prepare()
+		MissionQueueState.Outcome.FINISHED:
+			status_label.text = "EXPEDITION ORDERS COMPLETE"
+			expedition_ui.show_queue_summary()
+		MissionQueueState.Outcome.PAUSED:
+			status_label.text = "QUEUE PAUSED: " + mission_queue.pause_reason
+			expedition_ui.show_summary(false)
+		MissionQueueState.Outcome.STOPPED:
+			status_label.text = mission_queue.stop_reason
+			expedition_ui.show_summary(false)
+
+# Reuses Scheduled Rest (a Mission Queue prerequisite) between orders.
+func _queue_rest_or_prepare() -> void:
+	if not mission_queue.running:
+		return
+	if energy_recovery.is_ready():
+		_prepare_queue_next()
+		return
+	energy_recovery.start()
+	status_label.text = "Expedition Orders: Arthur is resting. Next: %s" % mission_queue.next_mission().display_name
+	expedition_ui.show_board()
+
+func _prepare_queue_next() -> void:
+	if queue_preparing:
+		return
+	queue_preparing = true
+	expedition_ui.hide()
+	status_label.text = "Arthur is READY. Preparing %s..." % mission_queue.next_mission().display_name
+	await get_tree().create_timer(REPEAT_PREPARATION_SECONDS).timeout
+	queue_preparing = false
+	if not mission_run.can_start():
+		return
+	if not mission_queue.running:
+		expedition_ui.show_board()
+		return
+	if not energy_recovery.is_ready():
+		# Rest was stopped; the next ready_reached continues the queue.
+		status_label.text = "Expedition Orders waiting: Arthur needs to rest."
+		expedition_ui.show_board()
+		return
+	if not start_mission(mission_queue.next_mission(), null, false, true):
+		mission_queue.pause("The next order could not be dispatched.")
+		status_label.text = "QUEUE PAUSED: " + mission_queue.pause_reason
+		expedition_ui.show_board()
+
+func start_queue() -> bool:
+	if not mission_queue.can_start() or not mission_run.can_start() or energy_recovery.recovery_enabled:
+		return false
+	# The queue owns dispatch; end any Repeat Orders session first.
+	if repeat_orders.repeat_enabled or repeat_orders.pending_restart:
+		repeat_orders.reset()
+	var mission: MissionData = mission_queue.start()
+	if not start_mission(mission, null, false, true):
+		mission_queue.stop("Expedition Orders could not start.")
+		return false
+	status_label.text = "Expedition Orders started: %s" % mission.display_name
+	return true
+
+func resume_queue() -> bool:
+	if not mission_queue.paused or not mission_run.can_start():
+		return false
+	var mission: MissionData = mission_queue.resume()
+	if energy_recovery.recovery_enabled:
+		status_label.text = "Expedition Orders resume when Arthur is READY."
+		expedition_ui.refresh()
+		return true
+	if not start_mission(mission, null, false, true):
+		mission_queue.pause("Resume failed: %s could not be dispatched." % mission.display_name)
+		return false
+	return true
+
+func stop_queue() -> void:
+	if not mission_queue.enabled:
+		return
+	if mission_queue.awaiting_result:
+		# Never cancels combat: the current mission finishes normally.
+		mission_queue.request_stop()
+		status_label.text = "Expedition Orders will stop after the current mission."
+	else:
+		mission_queue.stop("Expedition Orders stopped by player.")
+		status_label.text = mission_queue.stop_reason
+		if mission_run.can_start():
+			expedition_ui.show_board()
+
+func _update_queue_status() -> void:
+	if debug_combat_mode or mission_queue == null:
+		return
+	stop_queue_button.visible = mission_queue.enabled and not mission_queue.stop_requested
+	var text: String = ""
+	if mission_queue.enabled:
+		text = "EXPEDITION ORDERS | Queue: %s | Arthur: %s" % [mission_queue.progress_text(),
+			arthur.guild_status.replace("_", " ").capitalize()]
+		if mission_queue.paused:
+			text += "\nQUEUE PAUSED: " + mission_queue.pause_reason
+		elif mission_queue.stop_requested:
+			text += "\nStopping after the current mission."
+		elif not mission_queue.awaiting_result and mission_queue.next_mission() != null:
+			text += "\nNext Mission: " + mission_queue.next_mission().display_name
+	elif mission_queue.finished:
+		text = "EXPEDITION ORDERS COMPLETE: %s missions" % mission_queue.progress_text()
+	elif not mission_queue.stop_reason.is_empty():
+		text = mission_queue.stop_reason
+	queue_status_label.text = text
+	queue_status_label.visible = not text.is_empty()
+
 func _on_recovery_ready() -> void:
+	if mission_queue.running and not mission_queue.awaiting_result and mission_run.can_start():
+		_prepare_queue_next()
+		return
 	if not (repeat_orders.repeat_enabled and repeat_orders.pending_restart and repeat_orders.paused_for_recovery):
 		status_label.text = "Arthur is READY."
 		return
@@ -511,6 +665,7 @@ func _update_mission_status() -> void:
 			mission_run.mission.display_name, mission_run.current_encounter,
 			mission_run.total_encounters, MissionRun.State.keys()[mission_run.mission_state]]
 	_update_repeat_status()
+	_update_queue_status()
 
 func _update_repeat_status() -> void:
 	if debug_combat_mode:
@@ -532,6 +687,9 @@ func _update_repeat_status() -> void:
 
 func start_opportunity(instance: MissionInstance) -> bool:
 	if debug_combat_mode or not mission_run.can_start() or not board_rotation.can_claim(instance):
+		return false
+	# Special missions stay manual and never interrupt running Expedition Orders.
+	if mission_queue.running or energy_recovery.recovery_enabled:
 		return false
 	if not instance.definition.is_valid_definition():
 		return false

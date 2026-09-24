@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="MasteryNodeData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/mastery_node_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "mission_queue"
+display_name = "Mission Queue"
+description = "Prepare Expedition Orders: up to 3 persistent missions the Guild runs in your chosen order, resting between them."
+branch_id = "automation"
+tier = 3
+gold_cost = 10000
+guild_token_cost = 1
+prerequisite_ids = Array[String](["repeat_orders", "scheduled_rest"])
+effect_value = {}
+max_rank = 1
+implemented = true
+unlock_tags = Array[String](["mission_queue"])

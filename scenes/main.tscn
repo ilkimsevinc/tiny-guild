@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/mission_board_rotation.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/repeat_order_state.gd" id="12"]
 [ext_resource type="Script" path="res://scripts/energy_recovery.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/mission_queue_state.gd" id="14"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -160,6 +161,21 @@ offset_right = 890.0
 offset_bottom = 582.0
 text = "STOP REPEAT"
 
+[node name="QueueStatus" type="Label" parent="UI"]
+offset_left = 40.0
+offset_top = 588.0
+offset_right = 690.0
+offset_bottom = 640.0
+theme_override_colors/font_color = Color(0.75, 0.9, 0.55, 1)
+theme_override_font_sizes/font_size = 17
+
+[node name="StopQueue" type="Button" parent="UI"]
+offset_left = 700.0
+offset_top = 590.0
+offset_right = 890.0
+offset_bottom = 627.0
+text = "STOP QUEUE"
+
 [node name="MissionLabel" type="Label" parent="UI" unique_id=1524425449]
 offset_left = 40.0
 offset_top = 145.0
@@ -196,6 +212,9 @@ script = ExtResource("12")
 
 [node name="EnergyRecovery" type="Node" parent="."]
 script = ExtResource("13")
+
+[node name="MissionQueueState" type="Node" parent="."]
+script = ExtResource("14")
 
 [node name="EnergyLabel" type="Label" parent="UI"]
 offset_left = 40.0

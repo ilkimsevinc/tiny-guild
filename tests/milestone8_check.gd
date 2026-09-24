@@ -49,7 +49,7 @@ func press(button: Button) -> void:
 
 func select_mission(index: int) -> void:
 	var button: Button = main.expedition_ui.mission_buttons[BOARD.MISSIONS[index].id]
-	main.expedition_ui.get_node("Margin/Column/Board/Scroll").ensure_control_visible(button)
+	main.expedition_ui.entries.get_parent().ensure_control_visible(button)
 	await process_frame
 	await press(button)
 
