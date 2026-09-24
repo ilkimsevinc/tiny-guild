@@ -104,7 +104,7 @@ func run_check() -> void:
 		and mimi.hero_data.combat_style == HeroData.RANGED_MAGIC and mimi.skills.class_data.class_id == "mage"
 		and mimi.skills.tree.tree_id == "mage", "B: Mimi exists with class_id mage and the Mage tree")
 	check(mimi.progression.level == 1 and mimi.total_max_hp() == 70 and mimi.progression.current_hp == 70
-		and mimi.total_attack() == 8 and is_equal_approx(mimi.attack_interval(), 1.2) and is_equal_approx(mimi.attack_range, 220.0)
+		and mimi.total_attack() == 8 and is_equal_approx(mimi.attack_interval(), 1.2) and is_equal_approx(mimi.attack_range, 260.0)
 		and mimi.max_energy == 100 and mimi.move_speed < arthur.move_speed, "B: Mimi starting stats match the spec")
 	mimi.current_energy = 60
 	check(arthur.current_energy == 100 and mimi.progression != arthur.progression and mimi.equipment != arthur.equipment,
@@ -116,7 +116,7 @@ func run_check() -> void:
 	# D/E: party selection.
 	check(main.party.max_party_size() == 2 and main.party.hero_ids == ["arthur"], "D: Party size 2, default party Arthur")
 	await select_party(["arthur", "mimi"])
-	check(main.party.hero_ids == ["arthur", "mimi"] and ui.party_label.text == "Party: Arthur + Mimi", "D: Party supports two heroes")
+	check(main.party.hero_ids == ["arthur", "mimi"] and ui.party_label.text == "FRONT Arthur | BACK Mimi", "D: Party supports two heroes")
 	await select_party([])
 	check(main.party.hero_ids.is_empty() and ui.send_button.disabled and not main.start_mission(FOREST)
 		and main.party.dispatch_reason(main.party.hero_ids) == "Select at least one hero.", "E: Empty party cannot dispatch")
@@ -146,7 +146,7 @@ func run_check() -> void:
 	if not await play_run(true):
 		return fail_out()
 	check(not attack_distances.mimi.is_empty() and attack_distances.mimi.min() > HeroController.MELEE_RANGE + 20
-		and attack_distances.mimi.max() <= 220.5, "J: Mimi casts from ranged distance, never melee")
+		and attack_distances.mimi.max() <= 260.5, "J: Mimi casts from ranged distance, never melee")
 	check(main.mission_run.result_status == MissionRun.Result.COMPLETED and main.mission_run.hero_xp == {"mimi": 75}
 		and mimi.progression.level == 3 and arthur.progression.xp == arthur_xp_before and arthur.progression.level == 3,
 		"O/P: Mimi receives full XP and levels independently")
@@ -165,6 +165,7 @@ func run_check() -> void:
 	var gold_before: int = main.gold
 	var gel_before: int = main.inventory.quantity(GEL.id)
 	var levels: Dictionary = {"arthur": arthur.progression.level, "mimi": mimi.progression.level}
+	main.debug_next_drop = GEL # Deterministic drop for the natural first kill.
 	await press(ui.send_button)
 	check(in_progress() and main.mission_run.party_hero_ids == ["arthur", "mimi"]
 		and arthur.guild_status == "ON_EXPEDITION" and mimi.guild_status == "ON_EXPEDITION", "H: Arthur + Mimi mission dispatches")

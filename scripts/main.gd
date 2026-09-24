@@ -44,6 +44,12 @@ var roster_buttons: Dictionary[String, Button] = {}
 @onready var queue_status_label: Label = $UI/QueueStatus
 @onready var stop_queue_button: Button = $UI/StopQueue
 @onready var party: PartyState = $PartyState
+# Authoritative encounter target; heroes read it instead of searching.
+@onready var targeting: TargetingController = $Targeting
+# The encounter's single authoritative target (one enemy per encounter for now).
+var active_target: Node2D:
+	get:
+		return targeting.active_target if targeting != null else null
 @onready var hero_roster: VBoxContainer = $UI/HeroRoster
 var return_in_progress: bool = false
 var repeat_preparing: bool = false
@@ -58,6 +64,7 @@ var queue_preparing: bool = false
 @onready var mimi: HeroController = $Mimi
 @onready var slime_spawn: Marker2D = $SlimeSpawn
 @onready var alternate_spawn: Marker2D = $AlternateSlimeSpawn
+@onready var forward_spawn: Marker2D = $ForwardSlimeSpawn
 @onready var respawn_timer: Timer = $RespawnTimer
 @onready var gold_label: Label = $UI/GoldLabel
 @onready var hp_label: Label = $UI/SlimeHPLabel
@@ -176,21 +183,24 @@ func _spawn_slime() -> void:
 	slime = SLIME_SCENE.instantiate()
 	if not debug_combat_mode:
 		slime.enemy_data = mission_run.mission.enemy_for_encounter(mission_run.current_encounter)
-	# Alternate sides so every respawn gives the party another short walk.
-	slime.position = slime_spawn.position if spawn_on_right else alternate_spawn.position
+	# Missions spawn ahead of the regrouped party so formations always face forward;
+	# the legacy endless mode keeps alternating sides.
+	var second_spawn: Marker2D = alternate_spawn if debug_combat_mode else forward_spawn
+	slime.position = slime_spawn.position if spawn_on_right else second_spawn.position
 	spawn_on_right = not spawn_on_right
 	slime.health_changed.connect(_update_slime_hp)
 	slime.damaged.connect(_on_slime_damaged)
 	slime.died.connect(_on_slime_died)
 	add_child(slime)
 	_update_slime_hp(slime.hp)
+	targeting.register_enemy(slime)
 	status_label.text = "%s engage %s." % [party.names(_ids_of(combat_heroes())), slime.enemy_data.display_name]
 	for member in combat_heroes():
-		member.set_target(slime)
+		member.set_target(targeting.target_for(member))
 
 
 func _on_hero_attacked(target: Node2D, damage: int, member: HeroController) -> void:
-	if is_instance_valid(slime) and target == slime and member.is_target_in_range():
+	if is_instance_valid(slime) and target == active_target and target == slime and member.is_target_in_range():
 		status_label.text = "%s hits %s for %d damage!" % [member.display_name, slime.enemy_data.display_name, damage]
 		last_hit_color = member.hero_data.damage_color
 		slime.take_damage(damage)
@@ -221,7 +231,9 @@ func _update_slime_hp(current_hp: int) -> void:
 # One enemy death = one encounter for the whole party: Gold and loot once,
 # full XP and the encounter's Energy cost for every participant.
 func _on_slime_died() -> void:
-	if not is_instance_valid(slime):
+	# release_enemy succeeds once per enemy, so near-simultaneous hits or duplicate
+	# callbacks can never pay Gold, roll loot or advance the encounter twice.
+	if not is_instance_valid(slime) or not targeting.release_enemy(slime):
 		return
 	var defeated_position: Vector2 = slime.position
 	last_defeated_position = defeated_position
@@ -313,7 +325,7 @@ func _update_hero_roster() -> void:
 		var button: Button = roster_buttons.get(member.hero_id)
 		if button == null:
 			continue
-		button.text = "%s | %s | Energy %d/%d" % [member.summary_line(),
+		button.text = "%s | %s | EN %d/%d" % [member.summary_line(),
 			member.guild_status.replace("_", " "), member.current_energy, member.max_energy]
 		button.set_pressed_no_signal(member == hero_context)
 
@@ -500,6 +512,23 @@ func _dispatch_ids(automatic_repeat: bool, from_queue: bool) -> Array[String]:
 		return repeat_orders.party_hero_ids.duplicate()
 	return party.hero_ids.duplicate()
 
+# Automation keeps the formation it remembered; manual dispatch uses role-based auto formation.
+func _dispatch_formation(ids: Array[String], automatic_repeat: bool, from_queue: bool) -> PartyFormation:
+	var remembered: Array[String] = []
+	if from_queue:
+		remembered = mission_queue.formation_slots
+	elif automatic_repeat:
+		remembered = repeat_orders.formation_slots
+	if not remembered.is_empty() and remembered.size() == ids.size():
+		return PartyFormation.from_slots(remembered)
+	return party.formation_for(ids)
+
+# Slot 0 anchors the front; each later slot follows the hero ahead of it.
+func _apply_formation(formation: PartyFormation) -> void:
+	for member in heroes:
+		var leader: HeroController = party.hero(formation.leader_of(member.hero_id))
+		member.set_formation(leader, formation.spacing_of(member.hero_id))
+
 func start_mission(data: MissionData, instance: MissionInstance = null, automatic_repeat: bool = false, from_queue: bool = false) -> bool:
 	if debug_combat_mode or not mission_run.can_start():
 		return false
@@ -519,8 +548,10 @@ func start_mission(data: MissionData, instance: MissionInstance = null, automati
 	var members: Array[HeroController] = party.heroes_for(ids)
 	for member in members:
 		member.guild_status = "ON_EXPEDITION"
+	var formation: PartyFormation = _dispatch_formation(ids, automatic_repeat, from_queue)
+	_apply_formation(formation)
 	# Register the party first: MissionRun.start() spawns encounter 1 synchronously.
-	party.begin_mission(ids, data.id)
+	party.begin_mission(ids, data.id, formation)
 	if not mission_run.start(data, instance, ids):
 		party.active_hero_ids.clear()
 		party.end_mission()
@@ -532,7 +563,7 @@ func start_mission(data: MissionData, instance: MissionInstance = null, automati
 	if from_queue:
 		mission_queue.record_dispatch(data)
 	else:
-		repeat_orders.record_dispatch(data, automatic_repeat, ids)
+		repeat_orders.record_dispatch(data, automatic_repeat, ids, formation.slots)
 	expedition_ui.hide()
 	_update_hero_roster()
 	return true
@@ -600,7 +631,10 @@ func _resolve_mission_checkpoint() -> void:
 		snapshots.append(member.expedition_snapshot())
 	mission_run.resolve_party_checkpoint(snapshots)
 	if mission_run.mission_state == MissionRun.State.IN_PROGRESS:
-		status_label.text = "The party continues the expedition. Next encounter in 2 seconds..."
+		status_label.text = "The party regroups. Next encounter in 2 seconds..."
+		# Regroup to formation so the next enemy is always approached front-first.
+		for member in combat_heroes():
+			member.rally_to(member.home_position)
 		respawn_timer.start()
 
 func _return_to_guild() -> void:
@@ -734,7 +768,7 @@ func start_queue() -> bool:
 	# The queue owns dispatch; end any Repeat Orders session first.
 	if repeat_orders.repeat_enabled or repeat_orders.pending_restart:
 		repeat_orders.reset()
-	var mission: MissionData = mission_queue.start(ids)
+	var mission: MissionData = mission_queue.start(ids, party.formation_for(ids).slots)
 	if not start_mission(mission, null, false, true):
 		mission_queue.stop("Expedition Orders could not start.")
 		return false
@@ -861,9 +895,20 @@ func _update_mission_status() -> void:
 		mission_label.text = "Mission: %s | Encounter %d / %d | %s" % [
 			mission_run.mission.display_name, mission_run.current_encounter,
 			mission_run.total_encounters, MissionRun.State.keys()[mission_run.mission_state]]
+		if mission_run.mission_state != MissionRun.State.IDLE:
+			mission_label.text += "\nParty: " + formation_text(party.formation)
 	_update_repeat_status()
 	_update_queue_status()
 	_update_hero_roster()
+
+# "Arthur - FRONTLINE [FRONT] | Mimi - MAGE [BACK]"
+func formation_text(formation: PartyFormation) -> String:
+	var parts: Array[String] = []
+	for hero_id in formation.slots:
+		var member: HeroController = party.hero(hero_id)
+		if member != null:
+			parts.append("%s - %s [%s]" % [member.display_name, member.hero_data.combat_role, formation.row_of(hero_id)])
+	return " | ".join(parts)
 
 func _update_repeat_status() -> void:
 	if debug_combat_mode or party == null:

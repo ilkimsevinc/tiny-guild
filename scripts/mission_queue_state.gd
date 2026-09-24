@@ -31,6 +31,8 @@ var pause_after_current_requested: bool = false
 var finished: bool = false
 # Party chosen at START QUEUE; used for every entry (no per-entry parties yet).
 var party_hero_ids: Array[String] = []
+# Formation slots fixed for the whole queue session.
+var formation_slots: Array[String] = []
 
 var unlocked: bool:
 	get:
@@ -113,10 +115,11 @@ func clear() -> bool:
 func can_start() -> bool:
 	return unlocked and not enabled and not entries.is_empty()
 
-func start(hero_ids: Array[String] = []) -> MissionData:
+func start(hero_ids: Array[String] = [], slots: Array[String] = []) -> MissionData:
 	if not can_start():
 		return null
 	party_hero_ids = hero_ids.duplicate()
+	formation_slots = slots.duplicate()
 	for entry in entries:
 		entry.reset()
 	enabled = true
@@ -231,7 +234,7 @@ func snapshot() -> Dictionary:
 		rows.append("%s:%s(%d/%d)" % [entry.mission_id, entry.status_name(), entry.completed_count, entry.repeat_count])
 	return {"unlocked": unlocked, "enabled": enabled, "paused": paused, "pause_reason": pause_reason,
 		"current_index": current_index, "completed_entries": completed_entries, "session_run_count": session_run_count,
-		"awaiting_result": awaiting_result, "party_hero_ids": party_hero_ids, "stop_requested": stop_requested, "entries": rows}
+		"awaiting_result": awaiting_result, "party_hero_ids": party_hero_ids, "formation_slots": formation_slots, "stop_requested": stop_requested, "entries": rows}
 
 func _emit_changed() -> void:
 	changed.emit()

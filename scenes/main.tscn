@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://scripts/mission_queue_state.gd" id="14"]
 [ext_resource type="PackedScene" path="res://scenes/mimi.tscn" id="15"]
 [ext_resource type="Script" path="res://scripts/party_state.gd" id="16"]
+[ext_resource type="Script" path="res://scripts/targeting_controller.gd" id="17"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -40,6 +41,9 @@ position = Vector2(720, 350)
 
 [node name="AlternateSlimeSpawn" type="Marker2D" parent="." unique_id=2035903940]
 position = Vector2(300, 350)
+
+[node name="ForwardSlimeSpawn" type="Marker2D" parent="."]
+position = Vector2(600, 350)
 
 [node name="RespawnTimer" type="Timer" parent="." unique_id=1272671758]
 wait_time = 2.0
@@ -230,6 +234,9 @@ script = ExtResource("14")
 
 [node name="PartyState" type="Node" parent="."]
 script = ExtResource("16")
+
+[node name="Targeting" type="Node" parent="."]
+script = ExtResource("17")
 
 [node name="EnergyLabel" type="Label" parent="UI"]
 offset_left = 40.0

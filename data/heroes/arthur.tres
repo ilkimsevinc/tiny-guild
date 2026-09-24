@@ -8,6 +8,7 @@ hero_id = "arthur"
 display_name = "Arthur"
 class_id = "knight"
 combat_style = "MELEE"
+combat_role = "FRONTLINE"
 base_max_hp = 100
 base_damage = 10
 hp_per_level = 10

@@ -203,7 +203,12 @@ func _refresh_party_selection() -> void:
 		# Busy heroes cannot be added; an already-selected one can still be removed.
 		check.disabled = not run.can_start() or (not busy.is_empty() and not party.is_selected(member.hero_id))
 		check.tooltip_text = busy
-	party_label.text = "Party: " + party.names(party.hero_ids)
+	# Formation is automatic by role; shown so the player knows who holds the front.
+	var names: Dictionary = {}
+	for member in party.roster:
+		names[member.hero_id] = member.display_name
+	var formation: PartyFormation = party.formation_for(party.hero_ids)
+	party_label.text = formation.describe(names) if not formation.slots.is_empty() else "Party: None"
 
 func _refresh_rest() -> void:
 	var lines: Array[String] = []

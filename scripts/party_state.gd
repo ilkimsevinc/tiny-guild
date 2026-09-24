@@ -24,6 +24,8 @@ var hero_ids: Array[String] = []
 var active_hero_ids: Array[String] = []
 var status: String = "AT_GUILD"
 var current_mission_id: String = ""
+# Formation of the party on the current (or last) mission.
+var formation: PartyFormation = PartyFormation.new()
 
 func register(hero: HeroController, recovery: EnergyRecovery) -> void:
 	if hero in roster:
@@ -128,8 +130,15 @@ func names(ids: Array[String]) -> String:
 		parts.append(member.display_name)
 	return " + ".join(parts) if not parts.is_empty() else "None"
 
-func begin_mission(ids: Array[String], mission_id: String) -> void:
+func formation_for(ids: Array[String]) -> PartyFormation:
+	return PartyFormation.auto(heroes_for(ids))
+
+func begin_mission(ids: Array[String], mission_id: String, mission_formation: PartyFormation = null) -> void:
+	formation = mission_formation if mission_formation != null else formation_for(ids)
+	# Active heroes are kept in formation order, so index 0 is the front anchor.
 	active_hero_ids = ids.duplicate()
+	if formation.slots.size() == ids.size():
+		active_hero_ids = formation.slots.duplicate()
 	current_mission_id = mission_id
 	status = "ON_EXPEDITION"
 	changed.emit()
@@ -154,4 +163,5 @@ func readiness() -> Dictionary:
 
 func snapshot() -> Dictionary:
 	return {"party_id": party_id, "selected": hero_ids, "active": active_hero_ids, "status": status,
+		"formation": formation.slots,
 		"current_mission": current_mission_id, "max_party_size": max_party_size(), "heroes": readiness()}
