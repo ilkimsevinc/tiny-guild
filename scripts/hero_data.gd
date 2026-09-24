@@ -32,6 +32,8 @@ const FRONT_ROLES: Array[String] = [FRONTLINE, MELEE_DPS]
 @export var move_speed: float = 180.0
 # Placeholder presentation only.
 @export var damage_color: Color = Color.WHITE
+# GuildZoneData.zone_id the hero idles in when at the Guild.
+@export var guild_home_zone: String = "social"
 
 func is_ranged() -> bool:
 	return combat_style != MELEE

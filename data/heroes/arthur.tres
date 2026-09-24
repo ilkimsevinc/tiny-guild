@@ -18,3 +18,4 @@ base_attack_interval = 1.0
 attack_range = 130.0
 move_speed = 180.0
 damage_color = Color(1, 1, 1, 1)
+guild_home_zone = "training"

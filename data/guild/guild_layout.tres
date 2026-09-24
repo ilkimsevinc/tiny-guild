@@ -1,0 +1,79 @@
+[gd_resource type="Resource" script_class="GuildLayout" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/guild_layout.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/guild_zone_data.gd" id="2"]
+
+[sub_resource type="Resource" id="tavern"]
+script = ExtResource("2")
+zone_id = "tavern"
+display_name = "TAVERN"
+zone_type = "TAVERN"
+anchor_position = Vector2(115, 350)
+left = 60.0
+right = 170.0
+capacity = 4
+color = Color(0.3, 0.22, 0.16, 1)
+placeholder_note = "Reserved for Wilzaren"
+
+[sub_resource type="Resource" id="rest"]
+script = ExtResource("2")
+zone_id = "rest"
+display_name = "REST AREA"
+zone_type = "REST"
+anchor_position = Vector2(250, 350)
+left = 170.0
+right = 330.0
+capacity = 4
+color = Color(0.17, 0.24, 0.3, 1)
+
+[sub_resource type="Resource" id="social"]
+script = ExtResource("2")
+zone_id = "social"
+display_name = "SOCIAL AREA"
+zone_type = "GENERAL"
+anchor_position = Vector2(425, 350)
+left = 330.0
+right = 520.0
+capacity = 6
+color = Color(0.22, 0.22, 0.26, 1)
+
+[sub_resource type="Resource" id="board"]
+script = ExtResource("2")
+zone_id = "expedition_board"
+display_name = "EXPEDITION BOARD"
+zone_type = "EXPEDITION_BOARD"
+anchor_position = Vector2(575, 350)
+left = 520.0
+right = 690.0
+capacity = 4
+color = Color(0.25, 0.21, 0.18, 1)
+
+[sub_resource type="Resource" id="training"]
+script = ExtResource("2")
+zone_id = "training"
+display_name = "TRAINING"
+zone_type = "TRAINING"
+anchor_position = Vector2(750, 350)
+left = 690.0
+right = 810.0
+capacity = 3
+color = Color(0.2, 0.25, 0.2, 1)
+
+[sub_resource type="Resource" id="blacksmith"]
+script = ExtResource("2")
+zone_id = "blacksmith"
+display_name = "BLACKSMITH"
+zone_type = "BLACKSMITH"
+anchor_position = Vector2(865, 350)
+left = 810.0
+right = 920.0
+capacity = 2
+color = Color(0.27, 0.2, 0.2, 1)
+placeholder_note = "Reserved for Edward"
+
+[resource]
+script = ExtResource("1")
+zones = Array[ExtResource("2")]([SubResource("tavern"), SubResource("rest"), SubResource("social"), SubResource("board"), SubResource("training"), SubResource("blacksmith")])
+departure_anchor = Vector2(660, 350)
+return_anchor = Vector2(660, 350)
+bounds = Rect2(40, 200, 880, 162)

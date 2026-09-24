@@ -7,7 +7,7 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: 0 Arthur Energy=40 | F2 Mimi Energy=40 | F3 +30 Mimi XP | 7 10x recovery | 8 Full Energy (all) | 9 pause queue after current | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Arthur Energy=40 | F2 Mimi Energy=40 | F3 +30 Mimi XP | 7 10x recovery | 8 Full Energy (all) | 9 pause queue after current | Z hero to next Guild zone | X freeze Guild idle | C Guild heroes home | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
 const REPEAT_SUMMARY_SECONDS: float = 1.75
 const REPEAT_PREPARATION_SECONDS: float = 2.0
 const QUEUE_RESULT_SECONDS: float = 1.5
@@ -46,6 +46,10 @@ var roster_buttons: Dictionary[String, Button] = {}
 @onready var party: PartyState = $PartyState
 # Authoritative encounter target; heroes read it instead of searching.
 @onready var targeting: TargetingController = $Targeting
+@onready var guild: GuildController = $GuildInterior
+@onready var view_state: ViewStateController = $ViewState
+# True while the dispatched party walks to the Guild door; encounter 1 waits.
+var departing: bool = false
 # The encounter's single authoritative target (one enemy per encounter for now).
 var active_target: Node2D:
 	get:
@@ -126,7 +130,14 @@ func _ready() -> void:
 	board_rotation.opportunity_spawned.connect(_on_opportunity_spawned)
 	board_rotation.initialize()
 	expedition_ui.continue_requested.connect(_on_summary_continue)
-	board_button.pressed.connect(expedition_ui.show_board)
+	# The physical board is the conceptual owner of the Expedition UI overlay.
+	guild.setup(heroes, party.recoveries)
+	guild.open_expedition_board.connect(expedition_ui.show_board)
+	board_button.pressed.connect(guild.request_open_board)
+	view_state.changed.connect(_apply_view)
+	if debug_combat_mode:
+		view_state.set_view(ViewStateController.View.EXPEDITION_VIEW)
+	_apply_view(view_state.current)
 	if debug_combat_mode:
 		expedition_ui.hide()
 		board_button.hide()
@@ -194,7 +205,15 @@ func _spawn_slime() -> void:
 	add_child(slime)
 	_update_slime_hp(slime.hp)
 	targeting.register_enemy(slime)
-	status_label.text = "%s engage %s." % [party.names(_ids_of(combat_heroes())), slime.enemy_data.display_name]
+	# During the departure walk the encounter already exists (one per encounter),
+	# but the party only engages once it has left the Guild.
+	if not departing or debug_combat_mode:
+		_engage_party()
+
+func _engage_party() -> void:
+	if not is_instance_valid(active_target):
+		return
+	status_label.text = "%s engage %s." % [party.names(_ids_of(combat_heroes())), active_target.enemy_data.display_name]
 	for member in combat_heroes():
 		member.set_target(targeting.target_for(member))
 
@@ -423,6 +442,27 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		arthur.current_energy = 40
 		get_viewport().set_input_as_handled()
 		return
+	if event.keycode == KEY_Z:
+		# Teleport the context hero to the next Guild zone.
+		var ids: Array[String] = guild.zone_ids()
+		var next_zone: String = ids[(ids.find(guild.zone_of(hero_context)) + 1) % ids.size()]
+		guild.debug_teleport(hero_context, next_zone)
+		loot_debug_label.text = "DEBUG: %s -> %s. %s" % [hero_context.display_name, next_zone, DEBUG_HINT]
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_X:
+		guild.idle_frozen = not guild.idle_frozen
+		loot_debug_label.text = "DEBUG: Guild idle wandering %s. %s" % ["frozen" if guild.idle_frozen else "on", DEBUG_HINT]
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_C:
+		# Force every hero at the Guild back to their home zone.
+		for member in heroes:
+			if guild.is_in_guild(member):
+				guild.avatar(member).pinned = false
+				guild.send_home(member)
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F2:
 		mimi.current_energy = 40
 		loot_debug_label.text = "DEBUG: Mimi Energy set to 40. " + DEBUG_HINT
@@ -451,6 +491,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		print("REPEAT: %s | RECOVERY: %s" % [str(repeat_orders.snapshot()), str(energy_recovery.snapshot())])
 		print("QUEUE: %s" % str(mission_queue.snapshot()))
 		print("PARTY: %s" % str(party.snapshot()))
+		print("GUILD (%s): %s" % [view_state.view_name(), str(guild.describe_positions())])
 		loot_debug_label.text = "DEBUG REPEAT: %s\nDEBUG QUEUE: %s\nDEBUG PARTY: %s" % [
 			str(repeat_orders.snapshot()), str(mission_queue.snapshot()), str(party.snapshot())]
 		get_viewport().set_input_as_handled()
@@ -512,6 +553,26 @@ func _dispatch_ids(automatic_repeat: bool, from_queue: bool) -> Array[String]:
 		return repeat_orders.party_hero_ids.duplicate()
 	return party.hero_ids.duplicate()
 
+# Guild -> door -> expedition: a short visible walk, then the first encounter.
+func _depart_from_guild(members: Array[HeroController]) -> void:
+	status_label.text = "%s heading out of the Guild..." % party.names(_ids_of(members))
+	guild.depart(members)
+	await guild.party_departed
+	departing = false
+	if mission_run.mission_state == MissionRun.State.IN_PROGRESS:
+		view_state.set_view(ViewStateController.View.EXPEDITION_VIEW)
+		_engage_party()
+
+# GUILD_VIEW shows the interior (with every hero at home); EXPEDITION_VIEW shows
+# the combat stage with only the dispatched party.
+func _apply_view(view: ViewStateController.View) -> void:
+	var guild_view: bool = view == ViewStateController.View.GUILD_VIEW
+	guild.visible = guild_view
+	for member in heroes:
+		var fighting: bool = debug_combat_mode and member == arthur
+		fighting = fighting or (not guild_view and member.hero_id in party.active_hero_ids)
+		member.visible = fighting
+
 # Automation keeps the formation it remembered; manual dispatch uses role-based auto formation.
 func _dispatch_formation(ids: Array[String], automatic_repeat: bool, from_queue: bool) -> PartyFormation:
 	var remembered: Array[String] = []
@@ -550,14 +611,18 @@ func start_mission(data: MissionData, instance: MissionInstance = null, automati
 		member.guild_status = "ON_EXPEDITION"
 	var formation: PartyFormation = _dispatch_formation(ids, automatic_repeat, from_queue)
 	_apply_formation(formation)
-	# Register the party first: MissionRun.start() spawns encounter 1 synchronously.
+	# Register the party first: MissionRun.start() requests encounter 1 synchronously,
+	# and that spawn waits until the party has left the Guild.
 	party.begin_mission(ids, data.id, formation)
+	departing = true
 	if not mission_run.start(data, instance, ids):
+		departing = false
 		party.active_hero_ids.clear()
 		party.end_mission()
 		for member in members:
 			recovery_for(member).arrive_at_guild()
 		return false
+	_depart_from_guild(members)
 	for member in members:
 		recovery_for(member).apply_dispatch_bonus()
 	if from_queue:
@@ -650,6 +715,9 @@ func _return_to_guild() -> void:
 	party.set_returning()
 	for member in members:
 		member.guild_status = "RETURNING"
+	# Back to the Guild: the party re-enters through the door and walks to its spots.
+	view_state.set_view(ViewStateController.View.GUILD_VIEW)
+	guild.return_heroes(members)
 	_update_mission_status()
 	status_label.text = "%s returning to the Guild..." % party.names(_ids_of(members))
 	await get_tree().create_timer(1.0).timeout
@@ -699,9 +767,11 @@ func _continue_repeat_after_summary(mission: MissionData) -> void:
 	repeat_orders.pause_for_recovery(party.names(ids))
 	if repeat_orders.scheduled_rest_owned and _rest_party(ids):
 		status_label.text = "Scheduled Rest: %s resting before Repeat Orders resume." % party.names(ids)
+		# Keep the Guild visible: the party walks to the Rest Area on its own.
+		expedition_ui.hide()
 	else:
 		status_label.text = repeat_orders.stop_reason + " Press REST, then dispatch manually."
-	expedition_ui.show_board()
+		expedition_ui.show_board()
 
 func _handle_queue_return() -> void:
 	var finished_name: String = mission_run.mission.display_name
@@ -736,13 +806,14 @@ func _queue_rest_or_prepare() -> void:
 		return
 	_rest_party(ids)
 	status_label.text = "Expedition Orders: %s resting. Next: %s" % [party.names(ids), mission_queue.next_mission().display_name]
-	expedition_ui.show_board()
+	expedition_ui.hide() # Guild stays visible while the party rests.
 
 func _prepare_queue_next() -> void:
 	if queue_preparing:
 		return
 	queue_preparing = true
 	expedition_ui.hide()
+	guild.gather_at_board(party.heroes_for(mission_queue.party_hero_ids))
 	status_label.text = "Party READY. Preparing %s..." % mission_queue.next_mission().display_name
 	await get_tree().create_timer(REPEAT_PREPARATION_SECONDS).timeout
 	queue_preparing = false
@@ -856,6 +927,8 @@ func _prepare_repeat(mission: MissionData) -> void:
 	repeat_preparing = true
 	repeat_orders.resume_from_recovery()
 	expedition_ui.hide()
+	# Leave the Rest Area and gather at the Expedition Board before departing.
+	guild.gather_at_board(party.heroes_for(repeat_orders.party_hero_ids))
 	status_label.text = "%s READY. Preparing %s..." % [party.names(repeat_orders.party_hero_ids), mission.display_name]
 	await get_tree().create_timer(REPEAT_PREPARATION_SECONDS).timeout
 	repeat_preparing = false

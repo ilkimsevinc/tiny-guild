@@ -16,6 +16,7 @@ var run: MissionRun
 var party: PartyState
 var party_checks: Dictionary[String, CheckBox] = {}
 var party_label: Label
+var close_button: Button
 var mission_buttons: Dictionary[String, Button] = {}
 var prediction: String = ""
 var board_rotation: MissionBoardRotation
@@ -56,6 +57,7 @@ func setup(mission_run: MissionRun, party_state: PartyState, opportunity_board: 
 	repeat_orders = automation_state
 	queue = queue_state
 	send_button.text = "SEND PARTY"
+	_build_close_button()
 	_build_party_selection()
 	party.changed.connect(refresh)
 	for member in party.roster:
@@ -113,6 +115,20 @@ func setup(mission_run: MissionRun, party_state: PartyState, opportunity_board: 
 	continue_button.pressed.connect(func(): continue_requested.emit())
 	run.changed.connect(refresh)
 	show_board()
+
+# The board is an overlay on the Guild's physical Expedition Board; closing it
+# reveals the Guild interior. Reopen via the EXPEDITION BOARD button.
+func _build_close_button() -> void:
+	var header := HBoxContainer.new()
+	var column: VBoxContainer = title.get_parent()
+	column.add_child(header)
+	column.move_child(header, title.get_index())
+	title.reparent(header)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	close_button = Button.new()
+	close_button.text = "CLOSE BOARD"
+	close_button.pressed.connect(hide)
+	header.add_child(close_button)
 
 func _build_party_selection() -> void:
 	var row := HBoxContainer.new()
@@ -336,6 +352,7 @@ func _refresh_queue() -> void:
 
 func show_board() -> void:
 	title.text = "EXPEDITION BOARD"
+	close_button.visible = true
 	board.show()
 	summary.hide()
 	continue_button.hide()
@@ -344,6 +361,8 @@ func show_board() -> void:
 
 func show_summary(automatic: bool = false) -> void:
 	title.text = "MISSION COMPLETE" if run.result_status == MissionRun.Result.COMPLETED else "EXPEDITION ENDED"
+	# Summaries must be acknowledged with CONTINUE, not closed.
+	close_button.visible = false
 	board.hide()
 	summary.show()
 	continue_button.visible = not automatic
@@ -384,6 +403,7 @@ func show_summary(automatic: bool = false) -> void:
 func show_queue_summary() -> void:
 	var totals: QueueSessionSummary = queue.summary
 	title.text = "EXPEDITION ORDERS COMPLETE"
+	close_button.visible = false
 	board.hide()
 	summary.show()
 	continue_button.visible = true
