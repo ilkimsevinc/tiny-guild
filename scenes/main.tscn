@@ -15,6 +15,8 @@
 [ext_resource type="Script" path="res://scripts/repeat_order_state.gd" id="12"]
 [ext_resource type="Script" path="res://scripts/energy_recovery.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/mission_queue_state.gd" id="14"]
+[ext_resource type="PackedScene" path="res://scenes/mimi.tscn" id="15"]
+[ext_resource type="Script" path="res://scripts/party_state.gd" id="16"]
 
 [node name="Main" type="Node2D" unique_id=515317149]
 script = ExtResource("1")
@@ -29,6 +31,9 @@ polygon = PackedVector2Array(80, 350, 880, 350, 880, 354, 80, 354)
 
 [node name="Arthur" parent="." unique_id=1315604415 instance=ExtResource("2")]
 position = Vector2(240, 350)
+
+[node name="Mimi" parent="." instance=ExtResource("15")]
+position = Vector2(130, 350)
 
 [node name="SlimeSpawn" type="Marker2D" parent="." unique_id=1995733115]
 position = Vector2(720, 350)
@@ -116,9 +121,16 @@ text = "DEBUG loot: F6 = next Rare | F7 = next Epic"
 horizontal_alignment = 1
 autowrap_mode = 2
 
+[node name="HeroRoster" type="VBoxContainer" parent="UI"]
+offset_left = 950.0
+offset_top = 8.0
+offset_right = 1270.0
+offset_bottom = 100.0
+theme_override_constants/separation = 4
+
 [node name="Sidebar" type="TabContainer" parent="UI" unique_id=1220937818]
 offset_left = 950.0
-offset_top = 16.0
+offset_top = 104.0
 offset_right = 1270.0
 offset_bottom = 710.0
 theme_override_font_sizes/font_size = 14
@@ -215,6 +227,9 @@ script = ExtResource("13")
 
 [node name="MissionQueueState" type="Node" parent="."]
 script = ExtResource("14")
+
+[node name="PartyState" type="Node" parent="."]
+script = ExtResource("16")
 
 [node name="EnergyLabel" type="Label" parent="UI"]
 offset_left = 40.0

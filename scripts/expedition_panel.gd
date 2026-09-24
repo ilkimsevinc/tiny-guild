@@ -13,13 +13,14 @@ const MISSIONS: Array[MissionData] = [
 	preload("res://data/missions/treasure_trail.tres")]
 var selected: MissionData = MISSIONS[0]
 var run: MissionRun
-var hero: Node2D
+var party: PartyState
+var party_checks: Dictionary[String, CheckBox] = {}
+var party_label: Label
 var mission_buttons: Dictionary[String, Button] = {}
 var prediction: String = ""
 var board_rotation: MissionBoardRotation
 var mastery: GuildMasteryState
 var repeat_orders: RepeatOrderState
-var recovery: EnergyRecovery
 var queue: MissionQueueState
 var queue_box: VBoxContainer
 var queue_title: Label
@@ -44,24 +45,32 @@ var rotation_status: Label
 @onready var rest_button: Button = $Margin/Column/RestControls/Rest
 @onready var stop_rest_button: Button = $Margin/Column/RestControls/StopRest
 
-func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBoardRotation = null,
+func setup(mission_run: MissionRun, party_state: PartyState, opportunity_board: MissionBoardRotation = null,
 		mastery_state: GuildMasteryState = null, automation_state: RepeatOrderState = null,
-		recovery_state: EnergyRecovery = null, queue_state: MissionQueueState = null) -> void:
+		queue_state: MissionQueueState = null) -> void:
 	$Margin/Column/DebugControls.visible = OS.is_debug_build()
 	run = mission_run
-	hero = arthur
+	party = party_state
 	board_rotation = opportunity_board
 	mastery = mastery_state
 	repeat_orders = automation_state
-	recovery = recovery_state
 	queue = queue_state
+	send_button.text = "SEND PARTY"
+	_build_party_selection()
+	party.changed.connect(refresh)
+	for member in party.roster:
+		member.stats_changed.connect(refresh)
+		party.recoveries[member.hero_id].changed.connect(refresh)
+	# REST / STOP REST act on every hero at the Guild; each recovers independently.
+	rest_button.pressed.connect(func():
+		for recovery in party.recoveries.values():
+			recovery.start())
+	stop_rest_button.pressed.connect(func():
+		for recovery in party.recoveries.values():
+			recovery.stop())
 	if queue != null:
 		_build_queue_section()
 		queue.changed.connect(refresh)
-	if recovery != null:
-		recovery.changed.connect(refresh)
-		rest_button.pressed.connect(recovery.start)
-		stop_rest_button.pressed.connect(recovery.stop)
 	if repeat_orders != null:
 		repeat_orders.changed.connect(refresh)
 	repeat_toggle.toggled.connect(_on_repeat_toggled)
@@ -103,8 +112,29 @@ func setup(mission_run: MissionRun, arthur: Node2D, opportunity_board: MissionBo
 	send_button.pressed.connect(_on_send)
 	continue_button.pressed.connect(func(): continue_requested.emit())
 	run.changed.connect(refresh)
-	hero.stats_changed.connect(refresh)
 	show_board()
+
+func _build_party_selection() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var heading := Label.new()
+	heading.text = "SELECT PARTY:"
+	row.add_child(heading)
+	for member in party.roster:
+		var check := CheckBox.new()
+		check.text = member.display_name
+		check.toggled.connect(func(on: bool):
+			party.set_selected(member.hero_id, on)
+			refresh())
+		row.add_child(check)
+		party_checks[member.hero_id] = check
+	party_label = Label.new()
+	party_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	party_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(party_label)
+	var selection: VBoxContainer = send_button.get_parent()
+	selection.add_child(row)
+	selection.move_child(row, send_button.get_index())
 
 func select_mission(data: MissionData) -> void:
 	selected_instance = null
@@ -114,13 +144,21 @@ func select_mission(data: MissionData) -> void:
 	refresh()
 
 func refresh() -> void:
-	if run == null or hero == null or selected == null:
+	if run == null or party == null or selected == null:
 		return
-	prediction = StopConditionEvaluator.predict(selected, hero.current_energy, hero.max_energy, run.stop_config)
-	details.text = "[b]%s[/b]\n%s | Recommended Level %d\nEncounters: %d | Duration: %s\n\nEnergy: %s\nArthur Energy: %d / %d\nReturn below: %d%%\n\nBase completion reward: %d Gold / %d XP\n(Additional to encounter rewards)\n\nLoot: %s\n\n%s" % [
+	var ids: Array[String] = party.hero_ids
+	var members: Array[HeroController] = party.selected_heroes()
+	# Every member pays each encounter's cost, so the weakest member decides the risk.
+	var max_energy: int = members[0].max_energy if not members.is_empty() else 100
+	prediction = StopConditionEvaluator.predict(selected, party.min_energy(ids), max_energy, run.stop_config) \
+		if not members.is_empty() else "NO PARTY SELECTED"
+	var energy_lines: Array[String] = []
+	for member in members:
+		energy_lines.append("%s Energy: %d / %d" % [member.display_name, member.current_energy, member.max_energy])
+	details.text = "[b]%s[/b]\n%s | Recommended Level %d\nEncounters: %d | Duration: %s\n\nEnergy: %s (each hero)\n%s\nReturn below: %d%%\n\nBase completion reward: %d Gold / %d XP\n(Additional to encounter rewards)\n\nLoot: %s\n\n%s" % [
 		selected.display_name, selected.difficulty, selected.recommended_level,
 		selected.encounter_count, selected.estimated_duration_text, selected.energy_description(),
-		hero.current_energy, hero.max_energy, roundi(run.stop_config.min_energy_percent * 100),
+		"\n".join(energy_lines) if not energy_lines.is_empty() else "No heroes selected", roundi(run.stop_config.min_energy_percent * 100),
 		selected.base_gold_reward, selected.base_xp_reward, selected.loot_description(), selected.description]
 	if selected.completion_loot != null:
 		var names: Array[String] = []
@@ -132,8 +170,9 @@ func refresh() -> void:
 	warning.text = prediction
 	if selected.special_type == "BOSS":
 		warning.text += " | BOSS THREAT"
-	if hero.progression.level < selected.recommended_level:
-		warning.text += "\nArthur is below the recommended level."
+	for member in members:
+		if member.progression.level < selected.recommended_level:
+			warning.text += "\n%s is below the recommended level." % member.display_name
 	var unavailable: String = "Unlock Repeat Orders in Guild Mastery" if repeat_orders == null else repeat_orders.availability_reason(selected)
 	if unavailable.is_empty() and queue != null and queue.enabled:
 		unavailable = "Repeat Orders unavailable while Expedition Orders are active."
@@ -142,21 +181,47 @@ func refresh() -> void:
 	repeat_toggle.set_pressed_no_signal(repeat_orders != null and repeat_orders.repeat_enabled and repeat_orders.mission_id == selected.id)
 	repeat_reason.text = unavailable
 	repeat_reason.visible = not unavailable.is_empty()
-	if recovery != null:
-		var rate: String = str(snappedf(recovery.recovery_rate(), 0.1)).trim_suffix(".0")
-		rest_status.text = "Arthur | Status: %s | Energy: %d / %d | Recovery: +%s / sec" % [
-			hero.guild_status.replace("_", " ").capitalize(), hero.current_energy, hero.max_energy, rate]
-		var fully_rested: bool = hero.current_energy >= hero.max_energy
-		rest_button.disabled = not recovery.can_start() or not run.can_start()
-		rest_button.text = "Arthur is fully rested." if fully_rested else "REST"
-		stop_rest_button.disabled = not recovery.recovery_enabled
-		if recovery.recovery_enabled:
-			warning.text += "\nArthur is resting."
+	_refresh_rest()
+	for member in members:
+		if party.recoveries[member.hero_id].recovery_enabled:
+			warning.text += "\n%s is resting." % member.display_name
+	var dispatch_reason: String = party.dispatch_reason(ids)
+	if members.is_empty():
+		warning.text += "\n" + dispatch_reason
 	var queue_running: bool = queue != null and queue.running
 	if queue_running:
 		warning.text += "\nExpedition Orders running."
-	send_button.disabled = not run.can_start() or queue_running or (recovery != null and recovery.recovery_enabled) or (selected_instance != null and not board_rotation.can_claim(selected_instance))
+	send_button.disabled = not run.can_start() or queue_running or not dispatch_reason.is_empty() or (selected_instance != null and not board_rotation.can_claim(selected_instance))
+	_refresh_party_selection()
 	_refresh_queue()
+
+func _refresh_party_selection() -> void:
+	for member in party.roster:
+		var check: CheckBox = party_checks[member.hero_id]
+		check.set_pressed_no_signal(party.is_selected(member.hero_id))
+		var busy: String = party.unavailable_reason(member)
+		# Busy heroes cannot be added; an already-selected one can still be removed.
+		check.disabled = not run.can_start() or (not busy.is_empty() and not party.is_selected(member.hero_id))
+		check.tooltip_text = busy
+	party_label.text = "Party: " + party.names(party.hero_ids)
+
+func _refresh_rest() -> void:
+	var lines: Array[String] = []
+	var can_rest: bool = false
+	var anyone_resting: bool = false
+	var all_full: bool = true
+	for member in party.roster:
+		var recovery: EnergyRecovery = party.recoveries[member.hero_id]
+		var rate: String = str(snappedf(recovery.recovery_rate(), 0.1)).trim_suffix(".0")
+		lines.append("%s | Status: %s | Energy: %d / %d | Recovery: +%s / sec" % [member.display_name,
+			member.guild_status.replace("_", " ").capitalize(), member.current_energy, member.max_energy, rate])
+		can_rest = can_rest or recovery.can_start()
+		anyone_resting = anyone_resting or recovery.recovery_enabled
+		all_full = all_full and member.current_energy >= member.max_energy
+	rest_status.text = "\n".join(lines)
+	rest_button.disabled = not can_rest or not run.can_start()
+	rest_button.text = "Party is fully rested." if all_full else "REST"
+	stop_rest_button.disabled = not anyone_resting
 
 func _build_queue_section() -> void:
 	# Orders sit under the mission list so the selection column keeps its space.
@@ -238,13 +303,15 @@ func _refresh_queue() -> void:
 		queue_list.select(picked)
 	queue_title.text = "EXPEDITION ORDERS  %s" % (("Queue: " + queue.progress_text()) if queue.enabled else "(%d / %d)" % [queue.entries.size(), queue.capacity()])
 	var at_guild: bool = run.can_start()
-	var resting: bool = recovery != null and recovery.recovery_enabled
+	# A running session uses its own remembered party; otherwise the current selection.
+	var queue_ids: Array[String] = queue.party_hero_ids if queue.enabled else party.hero_ids
+	var resting: bool = party.any_resting(queue_ids)
 	queue_buttons.up.disabled = not queue.can_edit(picked) or not queue.can_edit(picked - 1)
 	queue_buttons.down.disabled = not queue.can_edit(picked) or not queue.can_edit(picked + 1)
 	queue_buttons.remove.disabled = not queue.can_edit(picked)
 	queue_buttons.clear.disabled = queue.enabled or queue.entries.is_empty()
 	queue_buttons.start.visible = not queue.enabled
-	queue_buttons.start.disabled = not queue.can_start() or not at_guild or resting
+	queue_buttons.start.disabled = not queue.can_start() or not at_guild or not party.dispatch_reason(party.hero_ids).is_empty()
 	queue_buttons.resume.visible = queue.paused
 	queue_buttons.resume.disabled = not at_guild
 	queue_buttons.stop.visible = queue.enabled
@@ -252,13 +319,13 @@ func _refresh_queue() -> void:
 	if queue.paused:
 		queue_status.text = "QUEUE PAUSED\nReason: " + queue.pause_reason
 	elif queue.enabled and resting and queue.next_mission() != null:
-		queue_status.text = "Arthur: Resting | Next Mission: " + queue.next_mission().display_name
+		queue_status.text = "%s: Resting | Next Mission: %s" % [party.names(queue_ids), queue.next_mission().display_name]
 	elif queue.enabled:
-		queue_status.text = "Arthur: " + hero.guild_status.replace("_", " ").capitalize()
+		queue_status.text = "Party: %s" % party.names(queue_ids)
 	elif queue.entries.is_empty():
 		queue_status.text = "Add persistent missions with ADD TO QUEUE."
 	elif resting:
-		queue_status.text = "Arthur is resting. Stop rest to start the queue."
+		queue_status.text = "The selected party is resting. Stop rest to start the queue."
 	else:
 		queue_status.text = queue.stop_reason
 
@@ -284,18 +351,29 @@ func show_summary(automatic: bool = false) -> void:
 		run.defeated_encounters, run.total_encounters, run.ending_energy, completion, run.accumulated_gold,
 		run.accumulated_xp, "\n".join(loot_lines) if not loot_lines.is_empty() else "No loot collected",
 		run.total_gold(), run.total_xp()]
+	# Participants: XP is awarded in full to each hero; Gold and loot are shared, paid once.
+	if not run.participants.is_empty():
+		var party_lines: Array[String] = []
+		for hero_id in run.participants:
+			var info: Dictionary = run.participants[hero_id]
+			party_lines.append("%s Lv %d | XP +%d | Energy %d" % [info.name, info.level, run.hero_xp.get(hero_id, 0),
+				run.party_ending_energy.get(hero_id, run.ending_energy)])
+		summary.text += "\n\n[b]Party[/b]\n" + "\n".join(party_lines)
+	var run_ids: Array[String] = run.party_hero_ids
+	var party_name: String = party.names(run_ids)
+	var run_ready: bool = party.all_ready(run_ids)
 	if queue != null and queue.paused:
-		summary.text += "\n\n[b]QUEUE PAUSED[/b]\nReason: %s\nRest or adjust Arthur, then RESUME QUEUE." % queue.pause_reason
+		summary.text += "\n\n[b]QUEUE PAUSED[/b]\nReason: %s\nRest or adjust the party, then RESUME QUEUE." % queue.pause_reason
 	if automatic and queue != null and queue.running:
 		summary.text += "\n\n[b]Expedition Orders:[/b] %s done. Next: %s%s" % [queue.progress_text(),
-			queue.next_mission().display_name, "" if recovery == null or recovery.is_ready() else " after rest."]
+			queue.next_mission().display_name, "" if run_ready else " after rest."]
 	elif automatic:
-		if recovery == null or recovery.is_ready():
+		if run_ready:
 			summary.text += "\n\n[b]Repeat Orders:[/b] Preparing the next run automatically..."
 		elif repeat_orders != null and repeat_orders.scheduled_rest_owned:
-			summary.text += "\n\n[b]Scheduled Rest:[/b] Arthur will rest, then resume automatically."
+			summary.text += "\n\n[b]Scheduled Rest:[/b] %s will rest, then resume automatically." % party_name
 		else:
-			summary.text += "\n\n[b]Repeat Orders paused:[/b] Arthur needs to recover."
+			summary.text += "\n\n[b]Repeat Orders paused:[/b] %s needs to recover." % party_name
 	show()
 
 func show_queue_summary() -> void:

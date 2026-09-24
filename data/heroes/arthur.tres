@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="HeroData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/hero_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+hero_id = "arthur"
+display_name = "Arthur"
+class_id = "knight"
+combat_style = "MELEE"
+base_max_hp = 100
+base_damage = 10
+hp_per_level = 10
+damage_per_level = 2
+max_energy = 100
+base_attack_interval = 1.0
+attack_range = 130.0
+move_speed = 180.0
+damage_color = Color(1, 1, 1, 1)

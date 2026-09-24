@@ -13,6 +13,8 @@ var repeat_run_count: int = 0
 var stop_reason: String = ""
 var pending_restart: bool = false
 var paused_for_recovery: bool = false
+# The party that repeats; captured from the player-dispatched run.
+var party_hero_ids: Array[String] = []
 
 var repeat_unlocked: bool:
 	get:
@@ -61,11 +63,13 @@ func set_enabled(mission: MissionData, enabled: bool) -> bool:
 	changed.emit()
 	return true
 
-func record_dispatch(mission: MissionData, automatic: bool = false) -> bool:
+func record_dispatch(mission: MissionData, automatic: bool = false, hero_ids: Array[String] = []) -> bool:
 	if mission == null or not repeat_enabled or mission.id != mission_id:
 		return false
 	if automatic and not pending_restart:
 		return false
+	if not automatic and not hero_ids.is_empty():
+		party_hero_ids = hero_ids.duplicate()
 	pending_restart = false
 	# A manual dispatch while paused resumes the session at current Energy.
 	paused_for_recovery = false
@@ -75,11 +79,11 @@ func record_dispatch(mission: MissionData, automatic: bool = false) -> bool:
 	changed.emit()
 	return true
 
-func pause_for_recovery() -> void:
+func pause_for_recovery(party_name: String = "Arthur") -> void:
 	if not repeat_enabled or not pending_restart:
 		return
 	paused_for_recovery = true
-	stop_reason = "Repeat Orders paused: Arthur needs to recover."
+	stop_reason = "Repeat Orders paused: %s needs to recover." % party_name
 	changed.emit()
 
 func resume_from_recovery() -> void:
@@ -122,7 +126,7 @@ func snapshot() -> Dictionary:
 	return {"repeat_unlocked": repeat_unlocked, "repeat_enabled": repeat_enabled,
 		"mission_id": mission_id, "repeat_run_count": repeat_run_count,
 		"stop_reason": stop_reason, "pending_restart": pending_restart,
-		"paused_for_recovery": paused_for_recovery, "scheduled_rest_owned": scheduled_rest_owned}
+		"paused_for_recovery": paused_for_recovery, "party_hero_ids": party_hero_ids, "scheduled_rest_owned": scheduled_rest_owned}
 
 func _on_mastery_changed() -> void:
 	if not repeat_unlocked and repeat_enabled:

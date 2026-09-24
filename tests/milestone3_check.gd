@@ -43,7 +43,7 @@ func on_attack(target: Node2D, damage: int) -> void:
 
 func run_check() -> void:
 	# Test progression independently of combat, animations, and reward UI.
-	var stats = load("res://scripts/arthur_progression.gd").new()
+	var stats = load("res://scripts/hero_progression.gd").new()
 	check(stats.level == 1 and stats.xp == 0 and stats.xp_required == 30, "Initial level and XP")
 	check(stats.damage == 10 and stats.current_hp == 100 and stats.max_hp == 100, "Initial damage and HP")
 	stats.add_xp(-10)

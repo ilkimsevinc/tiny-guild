@@ -24,6 +24,19 @@ func setup(item_inventory: Inventory, hero_equipment: Equipment) -> void:
 	refresh()
 
 
+# Inventory stays account-wide; only the equipment view follows the selected hero.
+func set_equipment(hero_equipment: Equipment, hero_name: String = "") -> void:
+	if equipment != null and equipment.changed.is_connected(refresh):
+		equipment.changed.disconnect(refresh)
+	equipment = hero_equipment
+	equipment.changed.connect(refresh)
+	if not hero_name.is_empty():
+		$Margin/Column/EquipmentTitle.text = hero_name.to_upper() + " EQUIPMENT"
+	selected_slot = -1
+	equipment_list.deselect_all()
+	refresh()
+
+
 func refresh() -> void:
 	inventory_list.clear()
 	for item in inventory.get_items():

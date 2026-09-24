@@ -1,0 +1,50 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/hero.gd" id="1"]
+
+[ext_resource type="Script" path="res://scripts/hero_progression.gd" id="2"]
+
+[ext_resource type="Script" path="res://scripts/equipment.gd" id="3"]
+
+[ext_resource type="Script" path="res://scripts/skill_tree.gd" id="4"]
+
+[ext_resource type="Resource" path="res://data/heroes/mimi.tres" id="5"]
+
+[node name="Mimi" type="Node2D"]
+script = ExtResource("1")
+hero_data = ExtResource("5")
+class_id = "mage"
+
+[node name="Visuals" type="Node2D" parent="."]
+
+[node name="Robe" type="Polygon2D" parent="Visuals"]
+polygon = PackedVector2Array(-30, 0, -18, -64, 18, -64, 30, 0)
+color = Color(0.62, 0.25, 0.78, 1)
+
+[node name="Head" type="Polygon2D" parent="Visuals"]
+polygon = PackedVector2Array(-15, -92, 15, -92, 15, -64, -15, -64)
+color = Color(0.98, 0.85, 0.78, 1)
+
+[node name="Hat" type="Polygon2D" parent="Visuals"]
+polygon = PackedVector2Array(-26, -88, 26, -88, 6, -132, -2, -132)
+color = Color(0.85, 0.3, 0.75, 1)
+
+[node name="Staff" type="Polygon2D" parent="Visuals"]
+polygon = PackedVector2Array(34, 0, 34, -96, 39, -96, 39, 0)
+color = Color(0.55, 0.38, 0.22, 1)
+
+[node name="StaffGem" type="Polygon2D" parent="Visuals"]
+polygon = PackedVector2Array(36, -112, 45, -103, 36, -94, 27, -103)
+color = Color(0.9, 0.55, 1, 1)
+
+[node name="AttackTimer" type="Timer" parent="."]
+wait_time = 1.2
+
+[node name="Progression" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="Equipment" type="Node" parent="."]
+script = ExtResource("3")
+
+[node name="Skills" type="Node" parent="."]
+script = ExtResource("4")

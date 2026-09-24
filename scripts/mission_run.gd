@@ -14,6 +14,13 @@ var result_status: Result = Result.NONE
 var stop_reason: StopConditionEvaluator.Reason = StopConditionEvaluator.Reason.NONE
 var checkpoint_pending: bool = false
 var ending_energy: int = 0
+# Party participants for this run. XP is awarded in full to each participant.
+var party_hero_ids: Array[String] = []
+var party_ending_energy: Dictionary[String, int] = {}
+# hero_id -> {"name", "level"} captured when the run ends, for summaries.
+var participants: Dictionary = {}
+# XP each participant actually received (own equipment modifiers applied).
+var hero_xp: Dictionary[String, int] = {}
 var completion_reward_eligible: bool:
 	get:
 		return result_status == Result.COMPLETED and defeated_encounters == total_encounters
@@ -39,7 +46,7 @@ var loot_items: Dictionary[String, ItemData] = {}
 func can_start() -> bool:
 	return mission_state == State.IDLE and not summary_pending
 
-func start(data: MissionData, instance: MissionInstance = null) -> bool:
+func start(data: MissionData, instance: MissionInstance = null, hero_ids: Array[String] = []) -> bool:
 	if not can_start() or data == null or data.encounter_count < 1:
 		return false
 	# Reject unsupported encounters instead of silently spawning the wrong enemy.
@@ -59,6 +66,10 @@ func start(data: MissionData, instance: MissionInstance = null) -> bool:
 	stop_reason = StopConditionEvaluator.Reason.NONE
 	checkpoint_pending = false
 	ending_energy = 0
+	party_hero_ids = hero_ids.duplicate()
+	party_ending_energy.clear()
+	participants.clear()
+	hero_xp.clear()
 	accumulated_gold = 0
 	accumulated_xp = 0
 	completion_gold = 0
@@ -91,10 +102,28 @@ func record_defeat(gold: int, xp: int) -> void:
 	changed.emit()
 
 func resolve_checkpoint(hero_state: Dictionary) -> void:
-	if mission_state != State.IN_PROGRESS or not checkpoint_pending:
+	resolve_party_checkpoint([hero_state])
+
+# Every hero is evaluated with the shared StopConditionEvaluator; if any member
+# breaches a hard stop, the whole party retreats.
+func resolve_party_checkpoint(hero_states: Array) -> void:
+	if mission_state != State.IN_PROGRESS or not checkpoint_pending or hero_states.is_empty():
 		return
 	checkpoint_pending = false
-	ending_energy = int(hero_state.get("current_energy", 100))
+	ending_energy = 1 << 30
+	for hero_state in hero_states:
+		var energy: int = int(hero_state.get("current_energy", 100))
+		ending_energy = mini(ending_energy, energy)
+		if hero_state.has("hero_id"):
+			party_ending_energy[hero_state.hero_id] = energy
+	var hero_state: Dictionary = hero_states[0]
+	for candidate in hero_states:
+		var probe: Dictionary = candidate.duplicate()
+		probe["carried_units"] = carried_units()
+		probe["encounters_completed"] = defeated_encounters
+		if StopConditionEvaluator.evaluate(probe, stop_config).should_stop:
+			hero_state = candidate
+			break
 	# Completing all encounters takes precedence over a stop condition.
 	if defeated_encounters == total_encounters:
 		mission_state = State.COMPLETED
@@ -157,6 +186,14 @@ func acknowledge_summary() -> bool:
 	summary_pending = false
 	changed.emit()
 	return true
+
+func award_hero_xp(hero_id: String, amount: int) -> void:
+	hero_xp[hero_id] = hero_xp.get(hero_id, 0) + amount
+
+func record_participants(heroes: Array) -> void:
+	participants.clear()
+	for member in heroes:
+		participants[member.hero_id] = {"name": member.display_name, "level": member.progression.level}
 
 func total_gold() -> int:
 	return accumulated_gold + completion_gold

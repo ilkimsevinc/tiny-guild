@@ -74,7 +74,7 @@ func run_check() -> void:
 	check(is_equal_approx(recovery.base_energy_recovery_per_second, 5.0) and is_equal_approx(recovery.recovery_rate(), 5.0)
 		and is_equal_approx(recovery.ready_threshold, 1.0), "Base recovery is 5/sec data with a 100% READY threshold")
 	check(main.arthur.guild_status == "READY" and ui.rest_button.disabled
-		and ui.rest_button.text == "Arthur is fully rested.", "Full Energy at start: READY and REST disabled")
+		and ui.rest_button.text == "Party is fully rested.", "Full Energy at start: READY and REST disabled")
 
 	# M: Scheduled Rest is locked behind Repeat Orders.
 	main.wallet.add_gold(1200)
@@ -129,7 +129,7 @@ func run_check() -> void:
 	check(main.arthur.current_energy == 100 and main.arthur.max_energy == 100, "E: Recovery clamps at Max Energy")
 	check(main.arthur.guild_status == "READY" and not recovery.recovery_enabled and ready_hits[0] == 1,
 		"G: Arthur becomes READY at 100 Energy and rest ends")
-	check(ui.rest_button.disabled and ui.rest_button.text == "Arthur is fully rested.", "Fully rested disables REST")
+	check(ui.rest_button.disabled and ui.rest_button.text == "Party is fully rested.", "Fully rested disables REST")
 
 	# J: predictions use actual current Energy.
 	var config: ExpeditionStopConfig = main.mission_run.stop_config

@@ -29,6 +29,8 @@ var stop_requested: bool = false
 # Future Boss Portal hook: finish the current mission, then pause for the player.
 var pause_after_current_requested: bool = false
 var finished: bool = false
+# Party chosen at START QUEUE; used for every entry (no per-entry parties yet).
+var party_hero_ids: Array[String] = []
 
 var unlocked: bool:
 	get:
@@ -111,9 +113,10 @@ func clear() -> bool:
 func can_start() -> bool:
 	return unlocked and not enabled and not entries.is_empty()
 
-func start() -> MissionData:
+func start(hero_ids: Array[String] = []) -> MissionData:
 	if not can_start():
 		return null
+	party_hero_ids = hero_ids.duplicate()
 	for entry in entries:
 		entry.reset()
 	enabled = true
@@ -143,7 +146,7 @@ func record_dispatch(mission: MissionData) -> bool:
 	changed.emit()
 	return true
 
-func record_result(run: MissionRun) -> Outcome:
+func record_result(run: MissionRun, party_name: String = "Arthur") -> Outcome:
 	awaiting_result = false
 	summary.record_run(run)
 	var entry: MissionQueueEntry = active_entry
@@ -151,7 +154,7 @@ func record_result(run: MissionRun) -> Outcome:
 		# RETREATED now; future FAILED/HERO_DOWNED follow the same path.
 		entry.entry_status = MissionQueueEntry.Status.BLOCKED
 		var result_name: String = MissionRun.Result.keys()[run.result_status].capitalize()
-		var reason: String = "Arthur retreated from %s due to %s." % [entry.display_name, StopConditionEvaluator.reason_text(run.stop_reason)] \
+		var reason: String = "%s retreated from %s due to %s." % [party_name, entry.display_name, StopConditionEvaluator.reason_text(run.stop_reason)] \
 			if run.result_status == MissionRun.Result.RETREATED else "%s ended as %s." % [entry.display_name, result_name]
 		if stop_requested:
 			stop(reason)
@@ -228,7 +231,7 @@ func snapshot() -> Dictionary:
 		rows.append("%s:%s(%d/%d)" % [entry.mission_id, entry.status_name(), entry.completed_count, entry.repeat_count])
 	return {"unlocked": unlocked, "enabled": enabled, "paused": paused, "pause_reason": pause_reason,
 		"current_index": current_index, "completed_entries": completed_entries, "session_run_count": session_run_count,
-		"awaiting_result": awaiting_result, "stop_requested": stop_requested, "entries": rows}
+		"awaiting_result": awaiting_result, "party_hero_ids": party_hero_ids, "stop_requested": stop_requested, "entries": rows}
 
 func _emit_changed() -> void:
 	changed.emit()
