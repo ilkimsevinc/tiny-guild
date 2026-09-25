@@ -16,7 +16,7 @@ var slots: Array[String] = []
 
 # Role-based automatic formation: FRONTLINE/MELEE_DPS first, others behind,
 # keeping roster order within each group so the result is stable.
-static func auto(heroes: Array[HeroController]) -> PartyFormation:
+static func auto(heroes: Array[HeroController], max_slots: int = MAX_SLOTS) -> PartyFormation:
 	var formation := PartyFormation.new()
 	var front: Array[String] = []
 	var back: Array[String] = []
@@ -27,7 +27,7 @@ static func auto(heroes: Array[HeroController]) -> PartyFormation:
 			back.append(member.hero_id)
 	formation.slots.append_array(front)
 	formation.slots.append_array(back)
-	formation.slots.resize(mini(formation.slots.size(), MAX_SLOTS))
+	formation.slots.resize(mini(formation.slots.size(), max_slots))
 	return formation
 
 static func from_slots(hero_ids: Array[String]) -> PartyFormation:

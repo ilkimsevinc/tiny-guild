@@ -153,9 +153,10 @@ func _build_party_selection() -> void:
 	selection.move_child(row, send_button.get_index())
 
 func select_mission(data: MissionData) -> void:
+	# Previewing a mission card is read-only: it must never cancel a Repeat
+	# Orders session armed for a different mission. Only an explicit dispatch
+	# (main.gd start_mission) or toggling Repeat Mission redirects the session.
 	selected_instance = null
-	if repeat_orders != null:
-		repeat_orders.select_mission(data)
 	selected = data
 	refresh()
 
@@ -164,10 +165,11 @@ func refresh() -> void:
 		return
 	var ids: Array[String] = party.hero_ids
 	var members: Array[HeroController] = party.selected_heroes()
-	# Every member pays each encounter's cost, so the weakest member decides the risk.
-	var max_energy: int = members[0].max_energy if not members.is_empty() else 100
-	prediction = StopConditionEvaluator.predict(selected, party.min_energy(ids), max_energy, run.stop_config) \
-		if not members.is_empty() else "NO PARTY SELECTED"
+	# Every member pays each encounter's cost, so the weakest member decides the risk;
+	# always compare that hero's Energy against their OWN max, never another hero's.
+	var weakest: HeroController = party.weakest_hero(ids)
+	prediction = StopConditionEvaluator.predict(selected, weakest.current_energy, weakest.max_energy, run.stop_config) \
+		if weakest != null else "NO PARTY SELECTED"
 	var energy_lines: Array[String] = []
 	for member in members:
 		energy_lines.append("%s Energy: %d / %d" % [member.display_name, member.current_energy, member.max_energy])
@@ -416,9 +418,8 @@ func show_queue_summary() -> void:
 func select_opportunity() -> void:
 	if board_rotation.slot == null:
 		return
+	# Previewing the rotating slot is read-only; see select_mission() above.
 	selected_instance = board_rotation.slot
-	if repeat_orders != null:
-		repeat_orders.select_mission(selected_instance.definition)
 	selected = selected_instance.definition
 	refresh()
 

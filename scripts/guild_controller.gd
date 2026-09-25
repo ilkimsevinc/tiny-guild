@@ -75,10 +75,12 @@ func zone_ids() -> Array[String]:
 	return ids
 
 func rest_zone_id() -> String:
-	return layout.first_of_type(REST_ZONE_TYPE).zone_id
+	var data: GuildZoneData = layout.first_of_type(REST_ZONE_TYPE)
+	return data.zone_id if data != null else ""
 
 func board_zone_id() -> String:
-	return layout.first_of_type(BOARD_ZONE_TYPE).zone_id
+	var data: GuildZoneData = layout.first_of_type(BOARD_ZONE_TYPE)
+	return data.zone_id if data != null else ""
 
 func home_zone_id(member: HeroController) -> String:
 	var wanted: String = member.hero_data.guild_home_zone

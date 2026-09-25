@@ -134,9 +134,12 @@ func run_check() -> void:
 	main.expedition_ui.repeat_toggle.button_pressed = true
 	main.repeat_orders.record_dispatch(FOREST)
 	main.expedition_ui.select_mission(NEST)
-	check(not main.repeat_orders.repeat_enabled and main.repeat_orders.repeat_run_count == 0
-		and main.repeat_orders.stop_reason.is_empty(), "R: Selecting a different mission resets repeat state")
+	check(main.repeat_orders.repeat_enabled and main.repeat_orders.mission_id == FOREST.id
+		and main.repeat_orders.repeat_run_count == 1, "R: Previewing a different mission does not cancel an armed repeat session")
+	check(not main.expedition_ui.repeat_toggle.button_pressed, "R: The toggle reflects the previewed mission, not the armed one")
 	main.expedition_ui.repeat_toggle.button_pressed = true
+	check(main.repeat_orders.mission_id == NEST.id and main.repeat_orders.repeat_run_count == 0,
+		"R: Explicitly toggling Repeat for a new mission redirects the session")
 	debug_key(KEY_0)
 	await press(main.expedition_ui.send_button)
 	debug_key(KEY_F8)

@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell($G = \"C:\\\\Users\\\\ilkim\\\\Downloads\\\\Godot_v4.7.2-stable_win64.exe\\\\Godot_v4.7.2-stable_win64_console.exe\"; $S = \"C:\\\\Users\\\\ilkim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Coding-tiny-guild\\\\1d62646b-f669-44d0-ad56-a01c8526ff8a\\\\scratchpad\"; $p = Start-Process $G -ArgumentList \"--path\",\".\",\"--script\",\"$S\\\\capture_board2.gd\" -NoNewWindow -PassThru -RedirectStandardError \"$S\\\\cb2_err.txt\" -RedirectStandardOutput \"$S\\\\cb2_out.txt\"; if \\(-not $p.WaitForExit\\(120000\\)\\) { $p | Stop-Process -Force; \"TIMEOUT\" }; Get-Content \"$S\\\\cb2_err.txt\")"
+      "PowerShell($G = \"C:\\\\Users\\\\ilkim\\\\Downloads\\\\Godot_v4.7.2-stable_win64.exe\\\\Godot_v4.7.2-stable_win64_console.exe\"; $S = \"C:\\\\Users\\\\ilkim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Coding-tiny-guild\\\\1d62646b-f669-44d0-ad56-a01c8526ff8a\\\\scratchpad\"; $p = Start-Process $G -ArgumentList \"--path\",\".\",\"--script\",\"$S\\\\capture_board2.gd\" -NoNewWindow -PassThru -RedirectStandardError \"$S\\\\cb2_err.txt\" -RedirectStandardOutput \"$S\\\\cb2_out.txt\"; if \\(-not $p.WaitForExit\\(120000\\)\\) { $p | Stop-Process -Force; \"TIMEOUT\" }; Get-Content \"$S\\\\cb2_err.txt\")",
+      "Bash(xargs wc -l)",
+      "Bash(python3 -c ' *)",
+      "Bash(git log *)",
+      "Read(//tmp/**)",
+      "Bash(grep -n \"^commit \" /tmp/scripts_diff.txt)",
+      "Bash(grep -n \"^-\" /tmp/scripts_diff.txt | grep -v \"^--- \" | head -200)",
+      "Bash(sed -n '1880,2100p' /tmp/scripts_diff.txt)",
+      "Bash(grep -nE \"^-.*\\(if |return|assert|null|disconnect|clamp|is_instance_valid|is_empty|queue_free|emit|await\\)\" /tmp/scripts_diff.txt | grep -v \"^-#\" )",
+      "Bash(grep -n \"^+++ /dev/null\\\\|^diff --git\" /tmp/scripts_diff.txt | grep -B1 \"dev/null\" )",
+      "PowerShell($G = \"C:\\\\Users\\\\ilkim\\\\Downloads\\\\Godot_v4.7.2-stable_win64.exe\\\\Godot_v4.7.2-stable_win64_console.exe\"; $p = Start-Process $G -ArgumentList \"--headless\",\"--path\",\".\",\"--import\" -NoNewWindow -PassThru -RedirectStandardError \"$env:TEMP\\\\imp_e.txt\" -RedirectStandardOutput \"$env:TEMP\\\\imp_o.txt\"; if \\(-not $p.WaitForExit\\(150000\\)\\) { $p | Stop-Process -Force; \"TIMEOUT\" }; Get-Content \"$env:TEMP\\\\imp_e.txt\",\"$env:TEMP\\\\imp_o.txt\" | Select-String \"ERROR|Parse\" | Select-Object -First 20)"
     ]
   }
 }

@@ -117,12 +117,15 @@ func all_ready(ids: Array[String]) -> bool:
 			return false
 	return true
 
-# Party predictions use the weakest member's Energy.
-func min_energy(ids: Array[String]) -> int:
-	var lowest: int = 1 << 30
+# Party predictions use whichever member is closest to a stop threshold: the
+# hero with the lowest current Energy, evaluated against their OWN max Energy
+# (never another hero's), since heroes are not guaranteed to share max Energy.
+func weakest_hero(ids: Array[String]) -> HeroController:
+	var lowest: HeroController = null
 	for member in heroes_for(ids):
-		lowest = mini(lowest, member.current_energy)
-	return lowest if lowest != 1 << 30 else 0
+		if lowest == null or member.current_energy < lowest.current_energy:
+			lowest = member
+	return lowest
 
 func names(ids: Array[String]) -> String:
 	var parts: Array[String] = []
@@ -131,7 +134,7 @@ func names(ids: Array[String]) -> String:
 	return " + ".join(parts) if not parts.is_empty() else "None"
 
 func formation_for(ids: Array[String]) -> PartyFormation:
-	return PartyFormation.auto(heroes_for(ids))
+	return PartyFormation.auto(heroes_for(ids), max_party_size())
 
 func begin_mission(ids: Array[String], mission_id: String, mission_formation: PartyFormation = null) -> void:
 	formation = mission_formation if mission_formation != null else formation_for(ids)

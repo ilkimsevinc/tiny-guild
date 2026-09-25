@@ -85,7 +85,7 @@ func bonus_percent(stat_id: String) -> float:
 	var total: float = 0.0
 	for node_id in unlocked_ids:
 		var node: MasteryNodeData = tree.find_node(node_id)
-		if node.implemented:
+		if node != null and node.implemented:
 			total += node.effect_value.get(stat_id, 0.0)
 	return total
 
@@ -93,6 +93,6 @@ func bonus_percent(stat_id: String) -> float:
 func has_unlock_tag(tag: String) -> bool:
 	for node_id in unlocked_ids:
 		var node: MasteryNodeData = tree.find_node(node_id)
-		if node.implemented and tag in node.unlock_tags:
+		if node != null and node.implemented and tag in node.unlock_tags:
 			return true
 	return false
