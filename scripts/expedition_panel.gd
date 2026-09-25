@@ -32,24 +32,24 @@ var add_queue_buttons: Dictionary[String, Button] = {}
 var selected_instance: MissionInstance
 var opportunity_button: Button
 var rotation_status: Label
-@onready var title: Label = $Margin/Column/Title
-@onready var board: HBoxContainer = $Margin/Column/Board
-@onready var entries: VBoxContainer = $Margin/Column/Board/Scroll/Entries
-@onready var details: RichTextLabel = $Margin/Column/Board/Selection/Details
-@onready var warning: Label = $Margin/Column/Board/Selection/Warning
-@onready var repeat_toggle: CheckButton = $Margin/Column/Board/Selection/RepeatMission
-@onready var repeat_reason: Label = $Margin/Column/Board/Selection/RepeatReason
-@onready var send_button: Button = $Margin/Column/Board/Selection/Send
-@onready var summary: RichTextLabel = $Margin/Column/Summary
-@onready var continue_button: Button = $Margin/Column/Continue
-@onready var rest_status: Label = $Margin/Column/RestControls/RestStatus
-@onready var rest_button: Button = $Margin/Column/RestControls/Rest
-@onready var stop_rest_button: Button = $Margin/Column/RestControls/StopRest
+@onready var title: Label = $Scroll/Margin/Column/Title
+@onready var board: HBoxContainer = $Scroll/Margin/Column/Board
+@onready var entries: VBoxContainer = $Scroll/Margin/Column/Board/Scroll/Entries
+@onready var details: RichTextLabel = $Scroll/Margin/Column/Board/Selection/Details
+@onready var warning: Label = $Scroll/Margin/Column/Board/Selection/Warning
+@onready var repeat_toggle: CheckButton = $Scroll/Margin/Column/Board/Selection/RepeatMission
+@onready var repeat_reason: Label = $Scroll/Margin/Column/Board/Selection/RepeatReason
+@onready var send_button: Button = $Scroll/Margin/Column/Board/Selection/Send
+@onready var summary: RichTextLabel = $Scroll/Margin/Column/Summary
+@onready var continue_button: Button = $Scroll/Margin/Column/Continue
+@onready var rest_status: Label = $Scroll/Margin/Column/RestControls/RestStatus
+@onready var rest_button: Button = $Scroll/Margin/Column/RestControls/Rest
+@onready var stop_rest_button: Button = $Scroll/Margin/Column/RestControls/StopRest
 
 func setup(mission_run: MissionRun, party_state: PartyState, opportunity_board: MissionBoardRotation = null,
 		mastery_state: GuildMasteryState = null, automation_state: RepeatOrderState = null,
 		queue_state: MissionQueueState = null) -> void:
-	$Margin/Column/DebugControls.visible = OS.is_debug_build()
+	$Scroll/Margin/Column/DebugControls.visible = OS.is_debug_build()
 	run = mission_run
 	party = party_state
 	board_rotation = opportunity_board

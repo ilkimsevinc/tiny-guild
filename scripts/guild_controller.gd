@@ -31,10 +31,24 @@ var rng := RandomNumberGenerator.new()
 var _was_resting: Dictionary[String, bool] = {}
 var _avatar_layer: Node2D
 
+var _greybox_layer: Node2D
+
 func _ready() -> void:
 	rng.seed = idle_seed
 	z_index = 5
 	_build_greybox()
+
+# Swaps in a rescaled layout (e.g. a narrower Desktop window) without losing
+# which hero is in which zone; only the pixel positions change.
+func apply_layout(new_layout: GuildLayout) -> void:
+	if new_layout == layout:
+		return
+	layout = new_layout
+	_rebuild_greybox()
+	for hero_id in avatars:
+		var body: GuildHeroAvatar = avatars[hero_id]
+		if not body.away and not body.zone_id.is_empty():
+			place_in_zone(body.hero, body.zone_id, true)
 
 func setup(heroes: Array[HeroController], recoveries: Dictionary) -> void:
 	for member in heroes:
@@ -245,13 +259,22 @@ func describe_positions() -> Dictionary:
 
 # --- Greybox visuals (replaceable by art later) -------------------------------
 
+func _rebuild_greybox() -> void:
+	if _greybox_layer != null:
+		_greybox_layer.queue_free()
+	_build_greybox()
+
 func _build_greybox() -> void:
+	_greybox_layer = Node2D.new()
+	_greybox_layer.name = "Greybox"
+	add_child(_greybox_layer)
+	move_child(_greybox_layer, 0)
 	var backdrop := ColorRect.new()
 	backdrop.position = layout.bounds.position
 	backdrop.size = layout.bounds.size
 	backdrop.color = Color(0.1, 0.11, 0.14, 1)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(backdrop)
+	_greybox_layer.add_child(backdrop)
 	var top: float = layout.bounds.position.y
 	var floor_y: float = layout.zones[0].anchor_position.y if not layout.zones.is_empty() else 350.0
 	for data in layout.zones:
@@ -260,7 +283,7 @@ func _build_greybox() -> void:
 		area.size = Vector2(data.right - data.left - 4, floor_y - top - 4)
 		area.color = data.color
 		area.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(area)
+		_greybox_layer.add_child(area)
 		var label := Label.new()
 		label.text = data.display_name + ("\n(" + data.placeholder_note + ")" if not data.placeholder_note.is_empty() else "")
 		label.position = Vector2(data.left + 6, top + 6)
@@ -268,7 +291,7 @@ func _build_greybox() -> void:
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		label.add_theme_font_size_override("font_size", 12)
 		label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9, 0.9))
-		add_child(label)
+		_greybox_layer.add_child(label)
 		# Width is set last (after theme overrides) so the text wraps inside its zone.
 		label.custom_minimum_size = Vector2(data.right - data.left - 12, 0)
 		label.size = label.custom_minimum_size
@@ -278,18 +301,21 @@ func _build_greybox() -> void:
 			board.size = Vector2(68, 50)
 			board.color = Color(0.45, 0.33, 0.2, 1)
 			board.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			add_child(board)
+			_greybox_layer.add_child(board)
 	var door := ColorRect.new()
 	door.position = Vector2(layout.departure_anchor.x - 16, floor_y - 78)
 	door.size = Vector2(32, 78)
 	door.color = Color(0.33, 0.26, 0.2, 1)
 	door.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(door)
+	_greybox_layer.add_child(door)
 	var floor_line := Line2D.new()
 	floor_line.points = PackedVector2Array([Vector2(layout.bounds.position.x, floor_y), Vector2(layout.bounds.end.x, floor_y)])
 	floor_line.width = 4.0
 	floor_line.default_color = Color(0.4, 0.42, 0.48, 1)
-	add_child(floor_line)
-	_avatar_layer = Node2D.new()
-	_avatar_layer.name = "Avatars"
-	add_child(_avatar_layer)
+	_greybox_layer.add_child(floor_line)
+	# Avatars persist across a layout rebuild (e.g. a Desktop-width rescale);
+	# only created once, and kept above the greybox visuals.
+	if _avatar_layer == null:
+		_avatar_layer = Node2D.new()
+		_avatar_layer.name = "Avatars"
+		add_child(_avatar_layer)

@@ -7,7 +7,7 @@ const XP_PER_SLIME: int = 15
 const PICKUP_RANGE: float = 36.0
 const GROUND_LOOT_SCENE = preload("res://scenes/ground_loot.tscn")
 const LOOT_TABLE = preload("res://scripts/loot_table.gd")
-const DEBUG_HINT: String = "DEBUG: 0 Arthur Energy=40 | F2 Mimi Energy=40 | F3 +30 Mimi XP | 7 10x recovery | 8 Full Energy (all) | 9 pause queue after current | Z hero to next Guild zone | X freeze Guild idle | C Guild heroes home | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
+const DEBUG_HINT: String = "DEBUG: 0 Arthur Energy=40 | F2 Mimi Energy=40 | F3 +30 Mimi XP | 7 10x recovery | 8 Full Energy (all) | 9 pause queue after current | Z hero to next Guild zone | X freeze Guild idle | C Guild heroes home | M toggle Desktop mode | R reset window position | 1 refresh | 2 Normal | 3 Elite | 4 Boss | 5 expire in 5s | 6 fast refresh | F4 state | F5 stop repeat | F6 Rare | F7 Epic | F8 defeat | F9 items | F10 +500 Gold | F11 +1000 Gold | F12 +10 Tokens"
 const REPEAT_SUMMARY_SECONDS: float = 1.75
 const REPEAT_PREPARATION_SECONDS: float = 2.0
 const QUEUE_RESULT_SECONDS: float = 1.5
@@ -38,15 +38,15 @@ var roster_buttons: Dictionary[String, Button] = {}
 @onready var repeat_orders: RepeatOrderState = $RepeatOrderState
 # Arthur's recovery; every hero gets one, see recovery_for().
 @onready var energy_recovery: EnergyRecovery = $EnergyRecovery
-@onready var repeat_status_label: Label = $UI/RepeatStatus
-@onready var stop_repeat_button: Button = $UI/StopRepeat
+@onready var repeat_status_label: Label = $UI/DevHUD/RepeatStatus
+@onready var stop_repeat_button: Button = $UI/DevHUD/StopRepeat
 @onready var mission_queue: MissionQueueState = $MissionQueueState
-@onready var queue_status_label: Label = $UI/QueueStatus
-@onready var stop_queue_button: Button = $UI/StopQueue
+@onready var queue_status_label: Label = $UI/DevHUD/QueueStatus
+@onready var stop_queue_button: Button = $UI/DevHUD/StopQueue
 @onready var party: PartyState = $PartyState
 # Authoritative encounter target; heroes read it instead of searching.
 @onready var targeting: TargetingController = $Targeting
-@onready var guild: GuildController = $GuildInterior
+@onready var guild: GuildController = $Stage/GuildInterior
 @onready var view_state: ViewStateController = $ViewState
 # True while the dispatched party walks to the Guild door; encounter 1 waits.
 var departing: bool = false
@@ -54,30 +54,30 @@ var departing: bool = false
 var active_target: Node2D:
 	get:
 		return targeting.active_target if targeting != null else null
-@onready var hero_roster: VBoxContainer = $UI/HeroRoster
+@onready var hero_roster: VBoxContainer = $UI/DevHUD/HeroRoster
 var return_in_progress: bool = false
 var repeat_preparing: bool = false
 var queue_preparing: bool = false
-@onready var energy_label: Label = $UI/EnergyLabel
-@onready var energy_bar: ProgressBar = $UI/EnergyBar
+@onready var energy_label: Label = $UI/DevHUD/EnergyLabel
+@onready var energy_bar: ProgressBar = $UI/DevHUD/EnergyBar
 @onready var mission_run: MissionRun = $MissionRun
 @onready var expedition_ui = $UI/ExpeditionPanel
-@onready var board_button: Button = $UI/BoardButton
-@onready var mission_label: Label = $UI/MissionLabel
-@onready var arthur: HeroController = $Arthur
-@onready var mimi: HeroController = $Mimi
-@onready var slime_spawn: Marker2D = $SlimeSpawn
-@onready var alternate_spawn: Marker2D = $AlternateSlimeSpawn
-@onready var forward_spawn: Marker2D = $ForwardSlimeSpawn
+@onready var board_button: Button = $UI/DevHUD/BoardButton
+@onready var mission_label: Label = $UI/DevHUD/MissionLabel
+@onready var arthur: HeroController = $Stage/Arthur
+@onready var mimi: HeroController = $Stage/Mimi
+@onready var slime_spawn: Marker2D = $Stage/SlimeSpawn
+@onready var alternate_spawn: Marker2D = $Stage/AlternateSlimeSpawn
+@onready var forward_spawn: Marker2D = $Stage/ForwardSlimeSpawn
 @onready var respawn_timer: Timer = $RespawnTimer
-@onready var gold_label: Label = $UI/GoldLabel
-@onready var hp_label: Label = $UI/SlimeHPLabel
-@onready var status_label: Label = $UI/StatusLabel
-@onready var state_label: Label = $UI/StateLabel
+@onready var gold_label: Label = $UI/DevHUD/GoldLabel
+@onready var hp_label: Label = $UI/DevHUD/SlimeHPLabel
+@onready var status_label: Label = $UI/DevHUD/StatusLabel
+@onready var state_label: Label = $UI/DevHUD/StateLabel
 # Shows the context hero's stats (name kept for existing tests).
-@onready var arthur_label: Label = $UI/ArthurLabel
-@onready var xp_label: Label = $UI/XPLabel
-@onready var xp_bar: ProgressBar = $UI/XPBar
+@onready var arthur_label: Label = $UI/DevHUD/ArthurLabel
+@onready var xp_label: Label = $UI/DevHUD/XPLabel
+@onready var xp_bar: ProgressBar = $UI/DevHUD/XPBar
 @onready var ground_loot: Node2D = $GroundLoot
 @onready var inventory: Inventory = $Inventory
 @onready var inventory_ui = $UI/Sidebar/Inventory
@@ -85,8 +85,20 @@ var queue_preparing: bool = false
 @onready var wallet: GoldWallet = $GoldWallet
 @onready var guild_mastery: GuildMasteryState = $GuildMastery
 @onready var mastery_ui = $UI/Sidebar/Mastery
-@onready var attack_interval_label: Label = $UI/AttackIntervalLabel
-@onready var loot_debug_label: Label = $UI/LootDebugLabel
+@onready var attack_interval_label: Label = $UI/DevHUD/AttackIntervalLabel
+@onready var loot_debug_label: Label = $UI/DevHUD/LootDebugLabel
+@onready var stage: Node2D = $Stage
+@onready var presentation: PresentationController = $PresentationController
+@onready var dev_hud: Control = $UI/DevHUD
+@onready var desktop_hud: Control = $UI/DesktopHUD
+@onready var sidebar: TabContainer = $UI/Sidebar
+# The Guild's un-rescaled layout, kept to restore/rescale from on mode switches.
+var base_guild_layout: GuildLayout
+var sidebar_close_button: Button
+var desktop_dragging: bool = false
+var desktop_hero_labels: Dictionary[String, Label] = {}
+var desktop_gold_label: Label
+var desktop_status_label: Label
 
 
 func _ready() -> void:
@@ -153,6 +165,10 @@ func _ready() -> void:
 		_update_mission_status()
 	_update_repeat_status()
 	_update_queue_status()
+	base_guild_layout = guild.layout
+	_build_desktop_hud()
+	presentation.mode_changed.connect(_apply_presentation)
+	_apply_presentation(presentation.current)
 
 
 func _register_hero(member: HeroController) -> void:
@@ -197,7 +213,9 @@ func _spawn_slime() -> void:
 	# Missions spawn ahead of the regrouped party so formations always face forward;
 	# the legacy endless mode keeps alternating sides.
 	var second_spawn: Marker2D = alternate_spawn if debug_combat_mode else forward_spawn
-	slime.position = slime_spawn.position if spawn_on_right else second_spawn.position
+	# Spawn markers live under Stage (which may be offset in Desktop mode); the
+	# Slime stays a direct child of Main, so it needs their true screen position.
+	slime.position = slime_spawn.global_position if spawn_on_right else second_spawn.global_position
 	spawn_on_right = not spawn_on_right
 	slime.health_changed.connect(_update_slime_hp)
 	slime.damaged.connect(_on_slime_damaged)
@@ -324,6 +342,7 @@ func _update_arthur_stats() -> void:
 	xp_bar.max_value = stats.xp_required
 	xp_bar.value = stats.xp
 	attack_interval_label.text = "Attack interval: %.2f s" % member.attack_interval()
+	_update_desktop_hud()
 
 
 func _build_hero_roster() -> void:
@@ -359,7 +378,7 @@ func set_hero_context(member: HeroController) -> void:
 
 
 func _on_hero_leveled_up(member: HeroController) -> void:
-	_show_floating_text("LEVEL UP!", member.position + Vector2(0, -145), Color(0.5, 0.9, 1))
+	_show_floating_text("LEVEL UP!", member.global_position + Vector2(0, -145), Color(0.5, 0.9, 1))
 
 
 func _physics_process(_delta: float) -> void:
@@ -410,12 +429,194 @@ func _on_loot_picked_up(item: ItemData) -> void:
 		font_size = 24
 		duration = 1.5
 	var leader: HeroController = combat_heroes()[0] if not combat_heroes().is_empty() else arthur
-	_show_floating_text(message, leader.position + Vector2(0, -145),
+	_show_floating_text(message, leader.global_position + Vector2(0, -145),
 		item.rarity_color(), font_size, duration)
 
 
 
+# --- Presentation mode (Development <-> Desktop) --------------------------------
+#
+# This section only ever changes HOW the game is shown (window, HUD layout,
+# Guild/combat pixel offsets). It must never touch gameplay state.
+
+func _apply_presentation(mode: PresentationController.Mode) -> void:
+	var desktop: bool = mode == PresentationController.Mode.DESKTOP
+	dev_hud.visible = not desktop
+	desktop_hud.visible = desktop
+	stage.position = presentation.stage_offset()
+	var size: Vector2i = presentation.target_window_size()
+	# A narrower-than-1280 Desktop window rescales the same six Guild zones
+	# (never a second layout); the common 1280-wide case needs no rescale.
+	if desktop and size.x != PresentationController.DEV_SIZE.x:
+		guild.apply_layout(base_guild_layout.scaled_for(float(size.x), presentation.desktop_floor_y()))
+	elif guild.layout != base_guild_layout:
+		guild.apply_layout(base_guild_layout)
+	if desktop:
+		var hud_bottom: float = presentation.desktop_hud_height
+		_fit_overlay(expedition_ui, hud_bottom, size)
+		_fit_overlay(sidebar, hud_bottom, size)
+		# Desktop mode never shows a big panel by default; MISSIONS/HEROES/etc. open one on demand.
+		expedition_ui.hide()
+		sidebar.visible = false
+		sidebar_close_button.position = Vector2(size.x - 92, hud_bottom + 6)
+		sidebar_close_button.visible = false
+		notification_label.offset_left = 16.0
+		notification_label.offset_top = 2.0
+		notification_label.offset_right = float(size.x) - 16.0
+		notification_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		# Debug instruction wall of text has no room in the compact strip.
+		loot_debug_label.visible = false
+	else:
+		expedition_ui.offset_left = 40.0
+		expedition_ui.offset_top = 180.0
+		expedition_ui.offset_right = 920.0
+		expedition_ui.offset_bottom = 705.0
+		sidebar.offset_left = 950.0
+		sidebar.offset_top = 104.0
+		sidebar.offset_right = 1270.0
+		sidebar.offset_bottom = 710.0
+		sidebar.visible = true # Development mode: always-on full panel, as before.
+		sidebar_close_button.visible = false
+		notification_label.offset_left = 300.0
+		notification_label.offset_top = 44.0
+		notification_label.offset_right = 760.0
+		loot_debug_label.visible = OS.is_debug_build()
+	_update_desktop_hud()
+
+func _fit_overlay(control: Control, top: float, size: Vector2i) -> void:
+	control.offset_left = 6.0
+	control.offset_top = top + 4.0
+	control.offset_right = float(size.x) - 6.0
+	control.offset_bottom = float(size.y) - 6.0
+
+func _open_desktop_missions() -> void:
+	_close_desktop_sidebar()
+	guild.request_open_board()
+
+func _open_desktop_sidebar(tab: int) -> void:
+	sidebar.current_tab = tab
+	sidebar.visible = true
+	sidebar_close_button.visible = true
+	expedition_ui.hide()
+
+func _close_desktop_sidebar() -> void:
+	sidebar.visible = false
+	sidebar_close_button.visible = false
+
+# ESC closes whichever Desktop overlay is open; otherwise it does nothing
+# (Development mode has no overlay concept to close via ESC).
+func _close_active_overlay() -> bool:
+	if not presentation.is_desktop():
+		return false
+	if expedition_ui.visible:
+		expedition_ui.hide()
+		return true
+	if sidebar.visible:
+		_close_desktop_sidebar()
+		return true
+	return false
+
+func _build_desktop_hud() -> void:
+	var drag_bar := Control.new()
+	drag_bar.position = Vector2(0, 0)
+	drag_bar.size = Vector2(1280, 22)
+	drag_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	drag_bar.gui_input.connect(_on_drag_bar_input)
+	desktop_hud.add_child(drag_bar)
+	var handle := Label.new()
+	handle.text = "☰ TINY GUILD"
+	handle.position = Vector2(8, 2)
+	handle.add_theme_font_size_override("font_size", 14)
+	handle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	drag_bar.add_child(handle)
+	var minimize_button := Button.new()
+	minimize_button.text = "_"
+	minimize_button.position = Vector2(1200, 0)
+	minimize_button.size = Vector2(32, 22)
+	minimize_button.pressed.connect(presentation.minimize)
+	desktop_hud.add_child(minimize_button)
+	var quit_button := Button.new()
+	quit_button.text = "X"
+	quit_button.position = Vector2(1236, 0)
+	quit_button.size = Vector2(32, 22)
+	quit_button.pressed.connect(presentation.quit)
+	desktop_hud.add_child(quit_button)
+	var y: float = 24.0
+	for member in heroes:
+		var label := Label.new()
+		label.position = Vector2(8, y)
+		label.size = Vector2(500, 18)
+		label.add_theme_font_size_override("font_size", 13)
+		desktop_hud.add_child(label)
+		desktop_hero_labels[member.hero_id] = label
+		y += 18.0
+	desktop_gold_label = Label.new()
+	desktop_gold_label.position = Vector2(8, y)
+	desktop_gold_label.size = Vector2(500, 18)
+	desktop_gold_label.add_theme_font_size_override("font_size", 13)
+	desktop_gold_label.add_theme_color_override("font_color", Color(1, 0.82, 0.35, 1))
+	desktop_hud.add_child(desktop_gold_label)
+	desktop_status_label = Label.new()
+	desktop_status_label.position = Vector2(520, 24)
+	desktop_status_label.size = Vector2(700, 40)
+	desktop_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desktop_status_label.add_theme_font_size_override("font_size", 13)
+	desktop_status_label.add_theme_color_override("font_color", Color(0.75, 0.9, 0.55, 1))
+	desktop_hud.add_child(desktop_status_label)
+	y += 22.0
+	var nav := HBoxContainer.new()
+	nav.position = Vector2(8, y)
+	nav.add_theme_constant_override("separation", 6)
+	desktop_hud.add_child(nav)
+	for spec in [["MISSIONS", _open_desktop_missions], ["HEROES", _open_desktop_sidebar.bind(1)],
+			["INVENTORY", _open_desktop_sidebar.bind(0)], ["MASTERY", _open_desktop_sidebar.bind(2)]]:
+		var button := Button.new()
+		button.text = spec[0]
+		button.add_theme_font_size_override("font_size", 12)
+		button.pressed.connect(spec[1])
+		nav.add_child(button)
+	sidebar_close_button = Button.new()
+	sidebar_close_button.text = "CLOSE"
+	sidebar_close_button.size = Vector2(80, 24)
+	sidebar_close_button.pressed.connect(_close_desktop_sidebar)
+	sidebar_close_button.visible = false
+	# Floats above Sidebar so it stays reachable regardless of Sidebar's own layout.
+	$UI.add_child(sidebar_close_button)
+
+func _update_desktop_hud() -> void:
+	if desktop_gold_label == null:
+		return
+	for member in heroes:
+		var label: Label = desktop_hero_labels.get(member.hero_id)
+		if label == null:
+			continue
+		label.text = "%s | HP %d/%d | EN %d/%d | %s" % [member.summary_line(),
+			member.progression.current_hp, member.total_max_hp(),
+			member.current_energy, member.max_energy, member.guild_status.replace("_", " ")]
+	desktop_gold_label.text = "Gold: %d | Guild Tokens: %d" % [gold, wallet.guild_tokens]
+	var text: String = ""
+	if mission_queue.enabled or mission_queue.finished or not mission_queue.stop_reason.is_empty():
+		text = queue_status_label.text
+	elif repeat_orders.repeat_enabled or not repeat_orders.stop_reason.is_empty():
+		text = repeat_status_label.text
+	elif not mission_label.text.is_empty():
+		text = mission_label.text
+	else:
+		text = status_label.text
+	desktop_status_label.text = text
+
+func _on_drag_bar_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		desktop_dragging = event.pressed
+	elif event is InputEventMouseMotion and desktop_dragging:
+		presentation.drag_by(Vector2i(event.relative))
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		if _close_active_overlay():
+			get_viewport().set_input_as_handled()
+			return
 	# Temporary manual testing controls, disabled in release builds.
 	if not OS.is_debug_build() or not event is InputEventKey:
 		return
@@ -461,6 +662,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			if guild.is_in_guild(member):
 				guild.avatar(member).pinned = false
 				guild.send_home(member)
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_M:
+		presentation.toggle_mode()
+		loot_debug_label.text = "DEBUG: Presentation mode -> %s. %s" % [presentation.mode_name(), DEBUG_HINT]
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_R:
+		presentation.reset_desktop_position()
+		loot_debug_label.text = "DEBUG: Desktop window position reset. " + DEBUG_HINT
 		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F2:
@@ -670,7 +881,7 @@ func _on_mission_completed() -> void:
 		for item in mission_run.mission.completion_loot.roll(mission_run.completion_rng):
 			_spawn_ground_loot(item, last_defeated_position)
 	status_label.text = "MISSION COMPLETE! Returning to the Guild..."
-	_show_floating_text("MISSION COMPLETE", fighters[0].position + Vector2(0, -200), Color(0.5, 1, 0.7), 28, 1.2)
+	_show_floating_text("MISSION COMPLETE", fighters[0].global_position + Vector2(0, -200), Color(0.5, 1, 0.7), 28, 1.2)
 	_return_to_guild()
 
 func _on_mission_retreated() -> void:
@@ -682,7 +893,7 @@ func _on_mission_retreated() -> void:
 	for member in fighters:
 		member.set_target(null)
 	status_label.text = "EXPEDITION STOPPED: %s. %s returning." % [StopConditionEvaluator.reason_text(mission_run.stop_reason), party_name]
-	var anchor: Vector2 = fighters[0].position if not fighters.is_empty() else arthur.position
+	var anchor: Vector2 = fighters[0].global_position if not fighters.is_empty() else arthur.global_position
 	_show_floating_text("EXPEDITION STOPPED\n" + StopConditionEvaluator.reason_text(mission_run.stop_reason),
 		anchor + Vector2(0, -200), Color(1, 0.7, 0.3), 26, 1.2)
 	_return_to_guild()
@@ -892,6 +1103,7 @@ func _update_queue_status() -> void:
 		text = mission_queue.stop_reason
 	queue_status_label.text = text
 	queue_status_label.visible = not text.is_empty()
+	_update_desktop_hud()
 
 # Any hero reaching READY re-checks automation; it continues only once the
 # whole remembered party is READY.
@@ -1002,6 +1214,7 @@ func _update_repeat_status() -> void:
 		repeat_status_label.show()
 	else:
 		repeat_status_label.hide()
+	_update_desktop_hud()
 
 func start_opportunity(instance: MissionInstance) -> bool:
 	if debug_combat_mode or not mission_run.can_start() or not board_rotation.can_claim(instance):
